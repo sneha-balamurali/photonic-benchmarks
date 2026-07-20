@@ -16,7 +16,7 @@ The aim is to compare different RCWA implementations using identical physical st
 ## Current benchmark implementations:
 
 - [FMMax (JAX)](https://github.com/facebookresearch/fmmax)
-- [$S^4$](https://web.stanford.edu/group/fan/S4/)
+- [S⁴](https://web.stanford.edu/group/fan/S4/)
 
 ## Repository Structure
 
