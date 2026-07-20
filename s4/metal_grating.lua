@@ -42,6 +42,10 @@ local ambient_permittivity = {1.0, 0.0}
 local planarization_permittivity = {2.25, 0.0}
 local substrate_permittivity = {-7.632, 0.731}
 
+-- Optional artificial y half-width used by the rectangle representation.
+-- Defaults to half the pitch.
+local rectangle_y_halfwidth_nm = y_halfwidth_nm or pitch_nm / 2 
+
 -- Each row pairs an FMMax 2D parallelogramic target with the S4 1D
 -- basis having the same number of x-directed harmonics.
 -- This is for later comparisons against FMMax results.
@@ -89,28 +93,34 @@ local function magnitude_squared(complex_number)
 		+ complex_number[2] * complex_number[2]
 end
 
+-- Function to build one simulation at a time
+-- basis_sweep then decides how many simulations to run and what number of harmonics to use in each simulation.
 local function create_metal_grating_simulation(requested_num_g, polarization)
+	-- Creates an empty simulation
 	local simulation = S4.NewSimulation()
 
-	-- A zero second lattice vector tells S4 that this is a 1D grating.
-	simulation:SetLattice({pitch_nm, 0}, {0, 0})
+	-- When SetLattice takes a single argument, it is interpreted as the period of a 1D lattice
+	simulation:SetLattice(pitch_nm)
 	simulation:SetNumG(requested_num_g)
 
-	simulation:AddMaterial('Ambient', ambient_permittivity)
+	simulation:AddMaterial('Ambient', ambient_permittivity)	-- name and permittivity
 	simulation:AddMaterial('Planarization', planarization_permittivity)
 	simulation:AddMaterial('Substrate', substrate_permittivity)
 
 	-- Layer order follows the direction of incidence, from top to bottom.
-	simulation:AddLayer('Ambient', 0, 'Ambient')
-	simulation:AddLayer(
-		'Planarization', planarization_thickness_nm, 'Planarization')
-	simulation:AddLayer(
-		'Grating', grating_thickness_nm, 'Planarization')
+	simulation:AddLayer('Ambient',	--name
+	 					0,			--thickness
+						'Ambient') 	-- material
+	simulation:AddLayer('Planarization', planarization_thickness_nm, 'Planarization')
+	simulation:AddLayer('Grating', grating_thickness_nm, 'Planarization')
 
 	-- S4 rectangles use half-widths, so 60 nm becomes 30 nm.
 	-- The y half-width is ignored for a 1D lattice.
-	simulation:SetLayerPatternRectangle(
-		'Grating', 'Substrate', {0, 0}, 0, {grating_width_nm / 2, 0})
+	simulation:SetLayerPatternRectangle('Grating', -- layer to pattern
+										'Substrate', -- material of rectangle
+										{0, 0}, -- center of rectangle relative to center of unit cell (origin)
+										0, -- angle
+										{grating_width_nm / 2, rectangle_y_halfwidth_nm	}) --half-widths in x and y
 	simulation:AddLayer('Substrate', 0, 'Substrate')
 
 	-- At normal incidence, s is TE and p is TM.
@@ -154,3 +164,73 @@ local function create_metal_grating_simulation(requested_num_g, polarization)
 
 	return simulation
 end
+
+-- Solve one simulation and extract the complex reflection coefficient for the 0th order reflected wave
+local function solve_and_extract_reflection(requested_num_g, polarization)
+	local simulation = create_metal_grating_simulation(requested_num_g, polarization)
+
+	-- The (0,0) diffraction order is the specular reflection order
+	local zero_order = simulation:GetDiffractionOrder(0, 0)
+
+	-- Get the forward incident amplitude and backward reflected amplitude
+	-- in the uniform ambient layer. Requesting these amplitudes causes S4 to
+	-- solve the complete layer stack
+	local forward_amplitudes, backward_amplitudes = simulation:GetAmplitudes('Ambient', 0)
+
+	-- SetNumG gives an upper bound; GetNumG returns the actual number of harmonics
+	-- used in the simulation.
+	local actual_num_g = simulation:GetNumG()
+
+	-- GetDiffractionOrder returns the 1-based Lua index of the 
+	-- specular (0,0) diffraction order 
+	local zero_order = simulation:GetDiffractionOrder(0, 0)
+
+	-- S4 stores the two polarisation amplitudes in a single array
+	-- with the first half being s-polarization and the second half being p-polarization.
+	local amplitude_index = zero_order
+
+	if polarization == 'p' then
+		amplitude_index = zero_order + actual_num_g
+	end
+
+	local incident_amplitude = forward_amplitudes[amplitude_index]
+	local reflected_amplitude = backward_amplitudes[amplitude_index]
+
+	-- Compute the complex reflection coefficient:
+	-- ratio of reflected to incident amplitude
+	local reflection_coefficient = divide_complex(reflected_amplitude, incident_amplitude)
+
+	return reflection_coefficient, actual_num_g
+
+end
+
+-- Temporary single-case test before running the full convergence study.
+local test_num_g = NG or 9
+
+local r_te, actual_te_num_g =
+    solve_and_extract_reflection(test_num_g, 's')
+
+local r_tm, actual_tm_num_g =
+    solve_and_extract_reflection(test_num_g, 'p')
+
+local reflectance_te = magnitude_squared(r_te)
+local reflectance_tm = magnitude_squared(r_tm)
+
+print("Test simulation completed")
+print("Requested NumG: " .. test_num_g)
+print("Actual TE NumG: " .. actual_te_num_g)
+print("Actual TM NumG: " .. actual_tm_num_g)
+
+print(string.format(
+    "r_te = %.17g %+.17gi, R_te = %.17g",
+    r_te[1],
+    r_te[2],
+    reflectance_te
+))
+
+print(string.format(
+    "r_tm = %.17g %+.17gi, R_tm = %.17g",
+    r_tm[1],
+    r_tm[2],
+    reflectance_tm
+))
