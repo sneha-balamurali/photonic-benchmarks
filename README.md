@@ -21,19 +21,19 @@ The aim is to compare different RCWA implementations using identical physical st
 ## Repository Structure
 
 - **FMMax:**
-    - [metal_grating_benchmark.py](/photonic-benchmarks/fmmax/metal_grating_benchmark.py)
+    - [metal_grating_benchmark.py](fmmax/metal_grating_benchmark.py)
         - Main FMMax benchmark implementation
         - Performs convergence studies for the metal grating benchmark and records reflection coefficients
         - Serves as the reference implementation that the S4 version reproduces
-    - [metal_grating_debug.py](/photonic-benchmarks/fmmax/metal_grating_debug.py)
+    - [metal_grating_debug.py](fmmax/metal_grating_debug.py)
         - Debugging version of the FMMax benchmark
         - Prints intermediate quantities and checks for NaN values to help diagnose numerical issues
         - Used for validating modifications before incorporating into main benchmark
 
 - **$S^4$:**
-    - [metal_grating.lua](/photonic-benchmarks/s4/metal_grating.lua)
+    - [metal_grating.lua](s4/metal_grating.lua)
         - S4 implementation of the FMMax metal grating benchmark
         - Reproduces the benchmark geometry, material parameters, and simulation settings using the $S^4$ Lua interface
         - Will be used to compare reflection coefficients, convergence behaviour and runtime with the FMMax implementation
-    - [metal_grating_doc.md](/photonic-benchmarks/s4/metal_grating_doc.md)
+    - [metal_grating_doc.md](s4/metal_grating_doc.md)
         - Documentation describing the S4 benchmark implementation
