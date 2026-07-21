@@ -172,10 +172,14 @@ local function solve_and_extract_reflection(requested_num_g, polarization)
 	-- Returns the 1-based Lua index of the (0,0) diffraction order.
 	local zero_order = simulation:GetDiffractionOrder(0, 0)
 
+	local start_cpu_time = os.clock()
+
 	-- Get the forward incident amplitude and backward reflected amplitude
 	-- in the uniform ambient layer. Requesting these amplitudes causes S4 to
 	-- solve the complete layer stack
 	local forward_amplitudes, backward_amplitudes = simulation:GetAmplitudes('Ambient', 0)
+
+	local cpu_seconds = os.clock() - start_cpu_time
 
 	-- SetNumG gives an upper bound; GetNumG returns the actual number of harmonics
 	-- used in the simulation.
@@ -196,33 +200,34 @@ local function solve_and_extract_reflection(requested_num_g, polarization)
 	-- ratio of reflected to incident amplitude
 	local reflection_coefficient = divide_complex(reflected_amplitude, incident_amplitude)
 
-	return reflection_coefficient, actual_num_g
+	return reflection_coefficient, actual_num_g, cpu_seconds
 
 end
 
 -- Convergence study
 local function run_convergence_study()
-	print("fmmax_equivalent_terms,s4_num_g,form,"
-		.. "r_s_real, r_s_imag, R_s,"
-		.. "r_p_real, r_p_imag, R_p"
-	)
+	print(
+	"fmmax_equivalent_terms,s4_num_g,form,"
+	.. "r_s_real,r_s_imag,R_s,s_cpu_seconds,"
+	.. "r_p_real,r_p_imag,R_p,p_cpu_seconds"
+)
 	-- Loop over the basis sweep, solving for each number of harmonics and extracting the reflection coefficients.
 	for _, basis in ipairs(basis_sweep) do
-		local r_s, s_num_g =
+		local r_s, s_num_g, s_cpu_seconds =
 			solve_and_extract_reflection(basis.s4_num_g,'s')
-		local r_p, p_num_g = 
+		local r_p, p_num_g, p_cpu_seconds =
 			solve_and_extract_reflection(basis.s4_num_g,'p')
 	
 	-- Compute the reflectance (magnitude squared of the reflection coefficient)
 		local reflectance_s = magnitude_squared(r_s)
 		local reflectance_p = magnitude_squared(r_p)
 
-		print(string.format("%d,%d,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f",
+		print(string.format("%d,%d,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f",
 			basis.fmmax_equivalent_terms,
 			basis.s4_num_g,
 			form,
-			r_s[1], r_s[2], reflectance_s,
-			r_p[1], r_p[2], reflectance_p
+			r_s[1], r_s[2], reflectance_s, s_cpu_seconds,
+			r_p[1], r_p[2], reflectance_p, p_cpu_seconds
 		))
 	end
 end
