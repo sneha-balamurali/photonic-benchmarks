@@ -169,7 +169,7 @@ end
 local function solve_and_extract_reflection(requested_num_g, polarization)
 	local simulation = create_metal_grating_simulation(requested_num_g, polarization)
 
-	-- The (0,0) diffraction order is the specular reflection order
+	-- Returns the 1-based Lua index of the (0,0) diffraction order.
 	local zero_order = simulation:GetDiffractionOrder(0, 0)
 
 	-- Get the forward incident amplitude and backward reflected amplitude
@@ -180,10 +180,6 @@ local function solve_and_extract_reflection(requested_num_g, polarization)
 	-- SetNumG gives an upper bound; GetNumG returns the actual number of harmonics
 	-- used in the simulation.
 	local actual_num_g = simulation:GetNumG()
-
-	-- GetDiffractionOrder returns the 1-based Lua index of the 
-	-- specular (0,0) diffraction order 
-	local zero_order = simulation:GetDiffractionOrder(0, 0)
 
 	-- S4 stores the two polarisation amplitudes in a single array
 	-- with the first half being s-polarization and the second half being p-polarization.
@@ -204,33 +200,31 @@ local function solve_and_extract_reflection(requested_num_g, polarization)
 
 end
 
--- Temporary single-case test before running the full convergence study.
-local test_num_g = NG or 9
+-- Convergence study
+local function run_convergence_study()
+	print("fmmax_equivalent_terms,s4_num_g,form,"
+		.. "r_s_real, r_s_imag, R_s,"
+		.. "r_p_real, r_p_imag, R_p"
+	)
+	-- Loop over the basis sweep, solving for each number of harmonics and extracting the reflection coefficients.
+	for _, basis in ipairs(basis_sweep) do
+		local r_s, s_num_g =
+			solve_and_extract_reflection(basis.s4_num_g,'s')
+		local r_p, p_num_g = 
+			solve_and_extract_reflection(basis.s4_num_g,'p')
+	
+	-- Compute the reflectance (magnitude squared of the reflection coefficient)
+		local reflectance_s = magnitude_squared(r_s)
+		local reflectance_p = magnitude_squared(r_p)
 
-local r_te, actual_te_num_g =
-    solve_and_extract_reflection(test_num_g, 's')
+		print(string.format("%d,%d,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f",
+			basis.fmmax_equivalent_terms,
+			basis.s4_num_g,
+			form,
+			r_s[1], r_s[2], reflectance_s,
+			r_p[1], r_p[2], reflectance_p
+		))
+	end
+end
 
-local r_tm, actual_tm_num_g =
-    solve_and_extract_reflection(test_num_g, 'p')
-
-local reflectance_te = magnitude_squared(r_te)
-local reflectance_tm = magnitude_squared(r_tm)
-
-print("Test simulation completed")
-print("Requested NumG: " .. test_num_g)
-print("Actual TE NumG: " .. actual_te_num_g)
-print("Actual TM NumG: " .. actual_tm_num_g)
-
-print(string.format(
-    "r_te = %.17g %+.17gi, R_te = %.17g",
-    r_te[1],
-    r_te[2],
-    reflectance_te
-))
-
-print(string.format(
-    "r_tm = %.17g %+.17gi, R_tm = %.17g",
-    r_tm[1],
-    r_tm[2],
-    reflectance_tm
-))
+run_convergence_study()
