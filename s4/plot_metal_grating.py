@@ -1,4 +1,14 @@
-"""Plot convergence and CPU time for the S4 metal grating benchmark."""
+"""Plot convergence and CPU time for the S4 metal grating benchmark.
+
+Workflow
+--------
+1. Read the CSV produced by metal_grating.lua
+2. Load the data into a pandas DataFrame.
+3. Generate: 
+    - Reflectance convergence plots
+    - CPU time plots
+4. Save figures to the results directory.
+"""
 
 from pathlib import Path
 

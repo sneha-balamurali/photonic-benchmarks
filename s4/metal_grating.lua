@@ -44,6 +44,10 @@ local substrate_permittivity = {-7.632, 0.731}
 
 -- Optional artificial y half-width used by the rectangle representation.
 -- Defaults to half the pitch.
+-- For a 1D lattice the geometry is invariant along y, so this value
+-- has no physical meaning. If no value is supplied on the command
+-- line, it defaults to half the unit-cell pitch (90 nm), causing the
+-- rectangle to span the entire unit cell in the y direction.
 local rectangle_y_halfwidth_nm = y_halfwidth_nm or pitch_nm / 2 
 
 -- Each row pairs an FMMax 2D parallelogramic target with the S4 1D
@@ -169,9 +173,6 @@ end
 local function solve_and_extract_reflection(requested_num_g, polarization)
 	local simulation = create_metal_grating_simulation(requested_num_g, polarization)
 
-	-- Returns the 1-based Lua index of the (0,0) diffraction order.
-	local zero_order = simulation:GetDiffractionOrder(0, 0)
-
 	local start_cpu_time = os.clock()
 
 	-- Get the forward incident amplitude and backward reflected amplitude
@@ -185,8 +186,9 @@ local function solve_and_extract_reflection(requested_num_g, polarization)
 	-- used in the simulation.
 	local actual_num_g = simulation:GetNumG()
 
-	-- S4 stores the two polarisation amplitudes in a single array
-	-- with the first half being s-polarization and the second half being p-polarization.
+	-- Returns the 1-based Lua index of the (0,0) diffraction order.
+	local zero_order = simulation:GetDiffractionOrder(0, 0)
+
 	local amplitude_index = zero_order
 
 	if polarization == 'p' then
