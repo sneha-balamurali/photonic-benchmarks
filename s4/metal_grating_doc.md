@@ -316,27 +316,19 @@ $$
 The complete magnetic-field vector can therefore be written as:
 
 $$
-\mathbf{H}=\left(a,\,b,\,-\frac{k_xa+k_yb}{k_z}\right).
+\mathbf{H}=\left(a,b,-\frac{k_xa+k_yb}{k_z}\right).
 $$
 
 This can be separated into two basis-vector contributions:
 
 $$
-\mathbf{H}
-=
-a\left(1,0,-\frac{k_x}{k_z}\right)
-+
-b\left(0,1,-\frac{k_y}{k_z}\right).
+\mathbf{H}=a\left(1,0,-\frac{k_x}{k_z}\right)+b\left(0,1,-\frac{k_y}{k_z}\right).
 $$
 
 S4 describes the magnetic-field contribution of that order using two complex coefficients, $a$ and $b$:
 
 $$
-\mathbf{H}
-=
-a\left(1,0,-\frac{k_x}{k_z}\right)
-+
-b\left(0,1,-\frac{k_y}{k_z}\right).
+\mathbf{H}=a\left(1,0,-\frac{k_x}{k_z}\right)+b\left(0,1,-\frac{k_y}{k_z}\right).
 $$
 
 The first `NumG` entries of each amplitude table contain the $a$, or $H_x$-like, coefficients. The second `NumG` entries contain the $b$, or $H_y$-like, coefficients.
@@ -350,14 +342,10 @@ $$
 so the magnetic field expansion simplifies to 
 
 $$
-\mathbf{H}
-=
-a(1,0,0)+b(0,1,0).
+\mathbf{H}=a(1,0,0)+b(0,1,0).
 $$
 
 Which means in our special case, $a$ corresponds to $H_x$ and $b$ corresponds to $H_y$. 
-
-
 
 
 For this isotropic 1D grating at normal incidence: 
@@ -403,9 +391,7 @@ $$
 Reversing the order of a cross product changes its sign. Therefore,
 
 $$
-\hat{\mathbf{z}}\times\hat{\mathbf{y}}
-=
--\hat{\mathbf{x}}.
+\hat{\mathbf{z}}\times\hat{\mathbf{y}}=-\hat{\mathbf{x}}.
 $$
 
 #### s/TE Polarization
@@ -420,13 +406,7 @@ $$
 The corresponding magnetic-field direction is
 
 $$
-\mathbf{H}_s
-\propto
-\hat{\mathbf{k}}\times\mathbf{E}_s
-=
-\hat{\mathbf{z}}\times\hat{\mathbf{y}}
-=
--\hat{\mathbf{x}}.
+\mathbf{H}_s\propto\hat{\mathbf{k}}\times\mathbf{E}_s=\hat{\mathbf{z}}\times\hat{\mathbf{y}}=-\hat{\mathbf{x}}.
 $$
 
 Therefore, s/TE excitation produces an $H_x$-like coefficient, including
