@@ -435,13 +435,7 @@ $$
 The corresponding magnetic-field direction is
 
 $$
-\mathbf{H}_p
-\propto
-\hat{\mathbf{k}}\times\mathbf{E}_p
-=
-\hat{\mathbf{z}}\times\hat{\mathbf{x}}
-=
-\hat{\mathbf{y}}.
+\mathbf{H}_p\propto\hat{\mathbf{k}}\times\mathbf{E}_p=\hat{\mathbf{z}}\times\hat{\mathbf{x}}=\hat{\mathbf{y}}.
 $$
 
 Therefore,
