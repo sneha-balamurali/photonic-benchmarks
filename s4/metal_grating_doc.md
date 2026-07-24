@@ -316,13 +316,7 @@ $$
 The complete magnetic-field vector can therefore be written as:
 
 $$
-\mathbf{H}
-=
-\left(
-a,\,
-b,\,
--\frac{k_xa+k_yb}{k_z}
-\right).
+\mathbf{H}=\left(a,\,b,\,-\frac{k_xa+k_yb}{k_z}\right).
 $$
 
 This can be separated into two basis-vector contributions:
