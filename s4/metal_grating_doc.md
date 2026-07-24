@@ -20,6 +20,27 @@ The implementation follows the physical structure used by FMMax while adapting i
 
 **Figure 2:** Schematic of the metal grating benchmark geometry from FMMax reproduced in S4. The structure consists of a semi-infinite air superstrate, a 20nm planarization layer and an 80nm thick patterned layer containing 60nm wide metal stripes embedded in the planarization material, and a semi-infinite metal substrate. The grating period is 180nm. *Diagram not to scale*
 
+### Z-Coordinate
+
+In S4, the $z$-coordinate increases from the semi-infinite
+ambient toward the substrate. Because the first and last layers have zero
+specified thickness, they represent semi-infinite exterior regions.
+
+For this structure, $z=0$ is the ambient-planarization interface. The
+layer positions are therefore
+
+$$
+\begin{aligned}
+\text{Ambient:} &\quad z<0,\\
+\text{Planarization:} &\quad 0<z<20\ \mathrm{nm},\\
+\text{Grating:} &\quad 20<z<100\ \mathrm{nm},\\
+\text{Substrate:} &\quad z>100\ \mathrm{nm}.
+\end{aligned}
+$$
+
+Thus, positive $z$ points from the ambient side toward the substrate,
+while the ambient itself extends toward negative infinity.
+
 ## Simulation Parameters
 
 |Parameter|Value|
@@ -50,7 +71,7 @@ Instead of modifying the source code everytime a different formulation or Fourie
 S4 -a 'NG=9; form="fft"' metal_grating.lua
 ```
 
-`S4.arg` is the string containing the text that is supplied through S4's `-a` command-line option.  So in the example above, `S4.arg` is `'form="fft";NG=0'` `loadstring(S4.arg)` then converts that text into executable Lua code. `pcall(...)` means protected call and it runs the function returned by `loadstring()` and doesn't terminate the script if it fails. This way if the argument is invalid or there is no -a argument provided, the entire script doesn't immediately crash. 
+`S4.arg` is the string containing the text that is supplied through S4's `-a` command-line option.  So in the example above, `S4.arg` is `'NG=9; form="fft"'` `loadstring(S4.arg)` then converts that text into executable Lua code. `pcall(...)` means protected call and it runs the function returned by `loadstring()` and doesn't terminate the script if it fails. This way if the argument is invalid or there is no -a argument provided, the entire script doesn't immediately crash. 
 
 
 If no formulation is supplied, the FFT formulation is selected as the default. 
@@ -119,9 +140,6 @@ It performs:
 local function solve_and_extract_reflection(requested_num_g, polarization)
 	local simulation = create_metal_grating_simulation(requested_num_g, polarization)
 
-	-- Returns the 1-based Lua index of the (0,0) diffraction order.
-	local zero_order = simulation:GetDiffractionOrder(0, 0)
-
 	local start_cpu_time = os.clock()
 
 	-- Get the forward incident amplitude and backward reflected amplitude
@@ -135,6 +153,8 @@ local function solve_and_extract_reflection(requested_num_g, polarization)
 	-- used in the simulation.
 	local actual_num_g = simulation:GetNumG()
 
+	-- Returns the 1-based Lua index of the (0,0) diffraction order.
+	local zero_order = simulation:GetDiffractionOrder(0, 0)
 
 	local amplitude_index = zero_order
 
@@ -154,53 +174,84 @@ local function solve_and_extract_reflection(requested_num_g, polarization)
 end
 ```
 
+#### <u> Purpose:</u>
+
 This function performs
+
 $$
-r = \frac{E_{\mathrm{reflected}}}{{E_{\mathrm{incident}}}}
+r_{00} =
+\frac{A_{00}^{\mathrm{backward}}}
+     {A_{00}^{\mathrm{forward}}}
 $$
 
-for one polarisation and one Fourier basis size.
+which is the complex specular reflection coefficient for one incident polarisation and one Fourier basis size where ${A_{00}^{\mathrm{backward}}}$ is the reflected modal coefficient and ${A_{00}^{\mathrm{forward}}}$ is the incident modal coefficient. 
 
-It builds the structure, tells S4 to solve Maxwell's equations, extracts the desired quantities and converts them into reflection coefficients. 
+The function:
+1. Constructs the physical structure
+2. Configures the source and numerical formulation
+3. Asks S4 to solve the complete multilayer scattering problem 
+4. Extracts the incident and reflected zero-order modal coefficients
+5. Calculates the complex modal reflection coefficient
+6. Records the CPU time used by the solve
 
-#### Build the simulation object:
+
+#### <u> Build the simulation object:</u>
 ```lua
 local simulation = create_metal_grating_simulation(requested_num_g, polarization)
 ```
 
-Specifies the lattice, materials, geometry, source, wavelength, numerical formulation. 
+Creates and configures a new S4 simulation with:
+- The 1D lattice and grating period
+- The material permittivities
+- The layer geometry and thickness
+- The incident polarisation
+- The wavelength
+- The requested Fourier basis sizes
+- The selected S4 formulation
 
-#### Diffraction Order:
+#### <u> Locating the Zeroth Diffraction Order: </u>
 ```lua
 -- Returns the 1-based Lua index of the (0,0) diffraction order.
 local zero_order = simulation:GetDiffractionOrder(0, 0)
 ```
-A periodic grating can scatter an incident wave into different directions. These outgoing waves are labelled by integers called diffraction orders: 
+
+A periodic grating can scatter an incident wave into several diffraction orders. In general 2D periodic structure these order are labelled by two integers. 
 
 $$
-(m,n) = (0,0), (1,0), (-1,0),...
+(m,n)
 $$
 
-Since we are dealing with a 1D grating, the periodic variation in the grating only occurs along x, therefore there is only one reciprocal lattice vector in the x direction and the relevant orders are effectively: 
+The integers specify the reciprocal-lattice momentum added in the two periodic directions. 
+
+For this 1D grating, the structure is periodic along only x and uniform along y. So, the relevant diffraction orders are:
 
 $$
-m = 0, +/-1, +/-2,...
-
-n = 0
-
+(m,0),
+\qquad
+m = 0,\pm 1,\pm 2,\ldots
 $$
 
-`simulation.GetDiffractionOrder(0,0)` asks S4 at which position in the amplitude array the (0,0) diffraction order is stored. It returns an array index which we can then use to access the relevant amplitudes. 
+The $(0,0)$ order has no additional in-plane momentum from the grating. In the ambient layer, its backward-propagating component is the specular, or mirror-like reflected wave. 
 
-Lua arrays are 1-based meaning that the index starts at 1 and not 0, so this also does the indexing for us automatically, which prevents mistakes. 
+We don't know how S4 orders its lists so in order to search S4's order list and return the position of the (0,0) order we use `GetDiffractionOrder(0,0)`. 
 
-#### Timing:
+Lua uses one-based indexing so the first array entry has index 1. And therefore `GetDiffractionOrder(0,0)` returns an index that can be used directly with the Lua amplitude tables. This index identifies the diffraction order within one `NumG` block. We have to later select the appropriate polarisation block. 
+
+#### <u>Timing:</u>
 ```lua
 local start_cpu_time = os.clock()
 ```
-Starts the timer
+Records the CPU time immediately before `GetAmplitudes()` is called. The elapsed time is later calculated using: 
 
-#### Forward and Backward Amplitudes
+```lua
+local cpu_seconds = os.clock() - start_cpu_time
+```
+
+`os.clock()` starts immediately before `GetAmplitudes()` and stops immediately afterward. It measures the CPU time consumed by the solve triggered by `GetAmplitudes()`. It excludes simulation construction and the subsequent calls to `GetNumG()` and `GetDiffractionOrder()`.
+
+At this time of writing, we should not yet treat it as directly equivalent to FMMax's `time.perf_counter()` measurement. 
+
+#### <u>Forward and Backward Amplitudes:</u>
 
 ```lua
 -- Get the forward incident amplitude and backward reflected amplitude
@@ -209,12 +260,257 @@ Starts the timer
 local forward_amplitudes, backward_amplitudes = simulation:GetAmplitudes('Ambient', 0)
 ```
 
-This is an important line. This is what causes S4 to solve the complete multilayer structure. `"Ambient"` only specifies where you want S4 to evaluate and return the modal amplitudes.
+This tells S4 to solve the electromagnetic scattering problem for the complete layer stack: Ambient, Planarisation, Patterned grating, Substrate. 
 
-In our code, S4 solves the electromagnetic scattering problem across the complete layer stack and then returns the modal amplitudes evaluated in the ambient layer at offset z = 0. 
+The argument "Ambient" doesn't tell S4 to only solve the ambient layer. It specifies the layer in which you want the resulting modal coefficient to be returned.
 
-Where:
-- `forward_amplitudes` - amplitudes of modes travelling in the forward +z direction in the ambient, this includes the imposed incident mode
-- `backward_amplitudes` - amplitudes of modes travelling in the bacward -z direction, these are the reflected modes. 
+Because the ambient is a uniform layer, its modes can be interpreted as diffraction orders. 
+
+S4 represents the electromagnetic field as a sum of modes. In a uniform layer, each mode is identified by:
+- a diffraction order
+- one of two independent polarisation components
+- a forward or backward propagating direction
+
+A modal coefficient is the complex weight multiplying one of these modes. It contains information about both the magnitude and phase of that mode. It is not a direct electric or magnetic field value at a single point. 
+
+For a diffraction orderwith wavevector
+
+$$
+\mathbf{k}=(k_x,k_y,k_z),
+$$
+
+the magnetic field must satisfy
+
+$$
+\mathbf{k}\cdot\mathbf{H}=0.
+$$
+
+Expanding the dot product gives: 
+
+$$
+k_xH_x+k_yH_y+k_zH_z=0.
+$$
+
+Solving for $H_z$ gives:
+
+$$
+H_z=-\frac{k_xH_x+k_yH_y}{k_z}.
+$$
+
+This means that once $H_x$ and $H_y$ are known, $H_z$ is determined automatically. So, the magnetic field has only two independent components.
+
+S4 represents these two independent components using the modal coefficients $a$ and $b$:
+
+$$
+a=H_x,
+\qquad
+b=H_y.
+$$
+
+Substituting these definitions into the expression for $H_z$ gives:
+
+$$
+H_z=-\frac{k_xa+k_yb}{k_z}.
+$$
+
+The complete magnetic-field vector can therefore be written as:
+
+$$
+\mathbf{H}
+=
+\left(
+a,\,
+b,\,
+-\frac{k_xa+k_yb}{k_z}
+\right).
+$$
+
+This can be separated into two basis-vector contributions:
+
+$$
+\mathbf{H}
+=
+a\left(1,0,-\frac{k_x}{k_z}\right)
++
+b\left(0,1,-\frac{k_y}{k_z}\right).
+$$
+
+S4 describes the magnetic-field contribution of that order using two complex coefficients, $a$ and $b$:
+
+$$
+\mathbf{H}
+=
+a\left(1,0,-\frac{k_x}{k_z}\right)
++
+b\left(0,1,-\frac{k_y}{k_z}\right).
+$$
+
+The first `NumG` entries of each amplitude table contain the $a$, or $H_x$-like, coefficients. The second `NumG` entries contain the $b$, or $H_y$-like, coefficients.
+
+At normal incidence,
+
+$$
+k_x=k_y=0
+$$
+
+so the magnetic field expansion simplifies to 
+
+$$
+\mathbf{H}
+=
+a(1,0,0)+b(0,1,0).
+$$
+
+Which means in our special case, $a$ corresponds to $H_x$ and $b$ corresponds to $H_y$. 
 
 
+
+
+For this isotropic 1D grating at normal incidence: 
+
+For a plane wave in an isotropic medium, the electric field $\mathbf{E}$, magnetic field $\mathbf{H}$ and propagation direction $\mathbf{k}$ are mutually perpendicular. 
+
+Their relationship is
+
+$$
+\mathbf{H} = \frac{1}{Z}\hat{\mathbf{k}}\times\mathbf{E}
+$$
+
+where:
+- $\hat{\mathbf{k}}$ is a unit vector in the propagation direction
+- $Z$ is the wave impedance of the medium
+
+The factor $1/Z$ determines the physical amplitude of the magnetic field but doesn't change its direction.
+
+For normal incidence in this S4 simulation, the wave travels along the
+positive $z$ direction:
+
+$$
+\hat{\mathbf{k}}=\hat{\mathbf{z}}.
+$$
+
+The cyclic cross-product relationships between the Cartesian unit vectors
+are
+
+$$
+\hat{\mathbf{x}}\times\hat{\mathbf{y}}=\hat{\mathbf{z}},
+$$
+
+$$
+\hat{\mathbf{y}}\times\hat{\mathbf{z}}=\hat{\mathbf{x}},
+$$
+
+and
+
+$$
+\hat{\mathbf{z}}\times\hat{\mathbf{x}}=\hat{\mathbf{y}}.
+$$
+
+Reversing the order of a cross product changes its sign. Therefore,
+
+$$
+\hat{\mathbf{z}}\times\hat{\mathbf{y}}
+=
+-\hat{\mathbf{x}}.
+$$
+
+#### s/TE Polarization
+
+At normal incidence, the electric field of the s-polarized wave points
+along the $y$ direction:
+
+$$
+\mathbf{E}_s\parallel\hat{\mathbf{y}}.
+$$
+
+The corresponding magnetic-field direction is
+
+$$
+\mathbf{H}_s
+\propto
+\hat{\mathbf{k}}\times\mathbf{E}_s
+=
+\hat{\mathbf{z}}\times\hat{\mathbf{y}}
+=
+-\hat{\mathbf{x}}.
+$$
+
+Therefore, s/TE excitation produces an $H_x$-like coefficient, including
+a minus sign from the field-direction convention:
+
+$$
+s/\mathrm{TE}
+\quad\longrightarrow\quad
+E_y
+\quad\longrightarrow\quad
+-H_x.
+$$
+
+S4 stores the $H_x$-like coefficients in the first `NumG` entries of
+each amplitude table.
+
+#### p/TM Polarization
+
+At normal incidence, the electric field of the p-polarized wave points
+along the $x$ direction:
+
+$$
+\mathbf{E}_p\parallel\hat{\mathbf{x}}.
+$$
+
+The corresponding magnetic-field direction is
+
+$$
+\mathbf{H}_p
+\propto
+\hat{\mathbf{k}}\times\mathbf{E}_p
+=
+\hat{\mathbf{z}}\times\hat{\mathbf{x}}
+=
+\hat{\mathbf{y}}.
+$$
+
+Therefore,
+
+$$
+p/\mathrm{TM}
+\quad\longrightarrow\quad
+E_x
+\quad\longrightarrow\quad
+H_y.
+$$
+
+S4 stores the $H_y$-like coefficients in the second `NumG` entries of
+each amplitude table.
+
+The resulting mapping is:
+
+| Incident polarization | Electric-field direction | Magnetic-field direction | S4 amplitude block |
+|---|---|---|---|
+| s / TE | $E_y$ | $-H_x$ | First `NumG` entries |
+| p / TM | $E_x$ | $H_y$ | Second `NumG` entries |
+
+Therefore, the relevant array index is selected using
+
+```lua
+local amplitude_index = zero_order
+
+if polarization == "p" then
+    amplitude_index = zero_order + actual_num_g
+end
+```
+
+
+The returned values are: 
+
+- `forward_amplitudes`: coefficients of modes travelling from the ambient toward the structure
+- `backward_amplitudes`: coefficients of modes travelling away from the structure and back into the ambient
+
+For this simulation:
+- the forward zeroth-order coefficient is the imposed incident wave
+- the backward zeroth-order coefficient is the specular reflected wave
+- higher-order backward coefficients describe higher reflected diffraction orders, including evanescent orders.
+
+Each table contains 2 * NumG complex modal coefficient because every retained diffraction order has two independent transverse polarisation components.
+
+For the zero-thickness ambient layer, an offset of 0 corresponds to the ambient–planarization interface and provides a consistent phase-reference plane for the reflection coefficients. 
