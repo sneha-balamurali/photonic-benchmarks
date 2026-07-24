@@ -233,6 +233,8 @@ $$
 
 The $(0,0)$ order has no additional in-plane momentum from the grating. In the ambient layer, its backward-propagating component is the specular, or mirror-like reflected wave. 
 
+Where the specular reflection is the reflected diffraction order that obeys the law of reflection. It corresponds to the (0,0) diffraction order and represents the mirror-like reflected beam. At normal incidence, this beam propagates back along the surface normal, but for oblique incidence it reflects at an angle equal to the angle of incidence.
+
 We don't know how S4 orders its lists so in order to search S4's order list and return the position of the (0,0) order we use `GetDiffractionOrder(0,0)`. 
 
 Lua uses one-based indexing so the first array entry has index 1. And therefore `GetDiffractionOrder(0,0)` returns an index that can be used directly with the Lua amplitude tables. This index identifies the diffraction order within one `NumG` block. We have to later select the appropriate polarisation block. 

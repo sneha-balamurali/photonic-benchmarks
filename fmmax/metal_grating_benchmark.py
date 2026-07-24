@@ -1,24 +1,52 @@
 """Originally based on FMMax's metal_grating.py example.
 
+FMMax implementation of the 1D metal-grating convergence benchmark.
+
+The physical structure consists of:
+
+1. a semi-infinite ambient layer (permittivity 1.0)
+2. a planarization layer (permittivity 2.25, thickness 20 nm)
+3. a patterned metal-grating layer (permittivity -7.632 + 0.731j, thickness 80 nm, pitch 180 nm, line width 60 nm)
+4. a semi-infinite substrate layer (permittivity -7.632 + 0.731j)
+
+The script calculates the zeroth-order s/TE and p/TM reflection coefficients. 
+
+The convergence study varies:
+
+- the approximate number of Fourier expansion terms
+- the Fourier-basis truncation (circular or parallelogramic)
+- the FMM formulation (FFT, Jones Direct, Jones, Normal, Pol)
+
+The script records the actual number of Fourier terms, reflection coefficients, reflectance and measured wall-clock runtime
+
 Copyright (c) Meta Platforms, Inc. and affiliates.
 
 Modified by Sneha Balamurali for benchmarking different RCWA solvers.
 """
 
+# For writing benchmark results in a tabular format
 import csv
-import math
+# Provides a high-resolution wall-clock timer for runtime measurements
 import time
+# Constructs filesystem paths for the output director and results files
 from pathlib import Path
-
+# Used to generate and save convergence and runtime plots
 import matplotlib.pyplot as plt
 
+# Generates every formulation/truncation/basis-size plots
 import itertools
 from typing import Tuple
 
 import jax.numpy as jnp
 
+# basis: constructs the reciprocal-space Fourier expansion
+# fmm: solves the electromagnetic eigenproblem within each layer
+# scattering: combines the individual layers into a stack scattering matrix
+# utils: contains material interpolation and other helper functions
 from fmmax import basis, fmm, scattering, utils
 
+
+# Target Fourier expansion sizes used for the convergence study
 NUM_TERMS_SWEEP = (9, 25, 49, 81, 121, 169, 225, 289, 361, 441, 529, 625, 729, 841)
 
 
@@ -36,7 +64,20 @@ def simulate_grating(
     truncation: basis.Truncation = basis.Truncation.CIRCULAR,
     formulation: fmm.Formulation = fmm.Formulation.FFT,
 ) -> Tuple[int, complex, complex]:
-    """Computes the TE- and TM-polarized reflection from a 1D stripe grating.
+    """Computes the TE- and TM-polarized reflection from a 1D stripe grating
+    for a specified Fourier-basis target, truncation, and FMM formulation. 
+
+    It:
+    1. Rasterises the 1D metal stripes on a 2D unit-cell grid
+    2. Constructs the four-layer permittivity stack
+    3. Generates the reciprocal-space Fourier expansion
+    4. Solves the eigenmodes of every layer
+    5. Combines the layers into a scattering matrix
+    6. Extracts the complex zeroth order TE and TM reflection coefficients
+
+    The geometry is physically 1D because its permittivity just varies along x and is
+    invariant along y but FMMax still represents it using a 2D unit cell and 2D Fourier
+    expansion.
 
     Args:
         permittivity_ambient: The permittivity of the ambient.
@@ -59,6 +100,9 @@ def simulate_grating(
         The number of terms in the expansion, and the reflection coefficients for TE-
         and TM-polarization.
     """
+    # Sample one square unit cell over [pitch_nm / 2, pitch_nm / 2)
+    # # `jnp.arange()` includes the lower endpoint but excludes the upper endpoint,
+    # which avoids duplicating the same periodic boundary point.
     x_nm, _ = jnp.meshgrid(
         jnp.arange(-pitch_nm / 2, pitch_nm / 2, resolution_nm),
         jnp.arange(-pitch_nm / 2, pitch_nm / 2, resolution_nm),
