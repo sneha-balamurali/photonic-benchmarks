@@ -218,8 +218,8 @@ end
 local function run_convergence_study()
 	print(
 	"fmmax_equivalent_terms,s4_num_g,form,"
-	.. "r_s_real,r_s_imag,r_s_magnitude,s_cpu_seconds,"
-	.. "r_p_real,r_p_imag,r_p_magnitude,p_cpu_seconds"
+	.. "r_s_real,r_s_imag,R_s,s_cpu_seconds,"
+	.. "r_p_real,r_p_imag,R_p,p_cpu_seconds"
 )
 	-- Loop over the basis sweep, solving for each number of harmonics and extracting the reflection coefficients.
 	for _, basis in ipairs(basis_sweep) do
@@ -228,16 +228,16 @@ local function run_convergence_study()
 		local r_p, p_num_g, p_cpu_seconds =
 			solve_and_extract_reflection(basis.s4_num_g,'p')
 	
-	-- Compute the reflectance (magnitude of the reflection coefficient)
-		local reflectance_s = magnitude(r_s)
-		local reflectance_p = magnitude(r_p)
+	-- Compute the reflectance (squared magnitude of the reflection coefficient)
+		local reflectance_s = magnitude_squared(r_s)
+		local reflectance_p = magnitude_squared(r_p)
 
 		print(string.format("%d,%d,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f",
 			basis.fmmax_equivalent_terms,
 			basis.s4_num_g,
 			form,
-			r_s[1], r_s[2], reflection_magnitude_s, s_cpu_seconds,
-			r_p[1], r_p[2], reflection_magnitude_p, p_cpu_seconds
+			r_s[1], r_s[2], reflectance_s, s_cpu_seconds,
+			r_p[1], r_p[2], reflectance_p, p_cpu_seconds
 		))
 	end
 end

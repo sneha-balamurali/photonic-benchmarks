@@ -37,6 +37,12 @@ import matplotlib.pyplot as plt
 import itertools
 from typing import Tuple
 
+import jax
+
+# Use double precision for numerical stability and to match S4.
+# This must be configured before creating JAX arrays or using FMMax.
+jax.config.update("jax_enable_x64", True)
+
 import jax.numpy as jnp
 
 # basis: constructs the reciprocal-space Fourier expansion
@@ -193,7 +199,7 @@ def convergence_study(
     results_directory = Path("results")
     results_directory.mkdir(exist_ok=True)
 
-    output_path = results_directory / "metal_grating_benchmark.csv"
+    output_path = results_directory / "metal_grating_comparison_1.csv"
     with output_path.open("w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerow(
@@ -203,10 +209,10 @@ def convergence_study(
                 "num_terms",
                 "r_te_real",
                 "r_te_imag",
-                "r_te_magnitude",
+                "R_te",
                 "r_tm_real",
                 "r_tm_imag",
-                "r_tm_magnitude",
+                "R_tm",
                 "runtime_seconds",
             ]
         )
@@ -218,10 +224,10 @@ def convergence_study(
                     num_terms,
                     r_te.real,
                     r_te.imag,
-                    abs(r_te),
+                    abs(r_te)**2,
                     r_tm.real,
                     r_tm.imag,
-                    abs(r_tm),
+                    abs(r_tm)**2,
                     runtime_seconds,
                 ]
             )
@@ -280,5 +286,14 @@ def plot_results(results):
 
 
 if __name__ == "__main__":
-    results = convergence_study(fmm_formulations=(fmm.Formulation.FFT,))
+    if __name__ == "__main__":
+    print(
+        f"JAX x64 enabled: {jax.config.read('jax_enable_x64')}, "
+        f"backend: {jax.default_backend()}, "
+        f"JAX version: {jax.__version__}"
+    )
+
+    results = convergence_study(
+        fmm_formulations=(fmm.Formulation.FFT,)
+    )
     plot_results(results)
