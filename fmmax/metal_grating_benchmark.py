@@ -24,6 +24,8 @@ Copyright (c) Meta Platforms, Inc. and affiliates.
 Modified by Sneha Balamurali for benchmarking different RCWA solvers.
 """
 
+# Parses the command-line choice between convergence and wavelength studies
+import argparse
 # For writing benchmark results in a tabular format
 import csv
 # Provides a high-resolution wall-clock timer for runtime measurements
@@ -157,6 +159,7 @@ def simulate_grating(
     r_tm = s_matrix.s21[expansion.num_terms, expansion.num_terms]
     return expansion.num_terms, complex(r_te), complex(r_tm)
 
+####################################################################
 
 def convergence_study(
     approximate_num_terms: Tuple[int, ...] = NUM_TERMS_SWEEP,
@@ -234,6 +237,96 @@ def convergence_study(
     print(f"\nSaved results to {output_path}")
     return tuple(results)
 
+#########################################################################
+
+def wavelength_sweep(
+    wavelengths_nm,
+    approximate_num_terms=841,
+    truncation=basis.Truncation.PARALLELOGRAMIC,
+    formulation=fmm.Formulation.FFT,
+):
+    """Compute a nondispersive TE spectrum using a fixed Fourier basis.
+
+    All permittivities are deliberately held constant as wavelength changes.
+    This tests numerical agreement between solvers; it is not a realistic
+    dispersive metal spectrum.
+    """
+
+    results = []
+
+    # These material values remain fixed throughout the wavelength sweep.
+    ambient_permittivity = 1.0 + 0.0j
+    planarization_permittivity = 2.25 + 0.0j
+    metal_permittivity = -7.632 + 0.731j
+
+    for wavelength_nm in wavelengths_nm:
+
+        start_time = time.perf_counter()
+
+        num_terms, r_te, _ = simulate_grating(
+            permittivity_ambient=ambient_permittivity,
+            permittivity_planarization=planarization_permittivity,
+            permittivity_substrate=metal_permittivity,
+            wavelength_nm=wavelength_nm,
+            approximate_num_terms=approximate_num_terms,
+            truncation=truncation,
+            formulation=formulation,
+        )
+
+        runtime_seconds = time.perf_counter() - start_time
+
+        results.append(
+            (
+                wavelength_nm,
+                num_terms,
+                formulation.value,
+                truncation.value,
+                metal_permittivity.real,
+                metal_permittivity.imag,
+                r_te.real,
+                r_te.imag,
+                abs(r_te) ** 2,
+                runtime_seconds,
+            )
+        )
+
+        print(
+            f"wavelength={wavelength_nm} nm: "
+            f"R_te={abs(r_te) ** 2:.6f}, runtime={runtime_seconds:.3f}s"
+        )
+
+    results_directory = Path(__file__).resolve().parent / "results"
+    results_directory.mkdir(parents=True, exist_ok=True)
+
+    output_path = results_directory / "metal_grating_spectrum.csv"
+
+    with output_path.open("w", newline="", encoding="utf-8") as file:
+
+        writer = csv.writer(file)
+
+        writer.writerow(
+            [
+                "wavelength_nm",
+                "num_terms",
+                "formulation",
+                "truncation",
+                "metal_permittivity_real",
+                "metal_permittivity_imag",
+                "r_te_real",
+                "r_te_imag",
+                "R_te",
+                "runtime_seconds",
+            ]
+        )
+
+        writer.writerows(results)
+
+    print(f"Saved spectrum to {output_path}")
+
+    return results
+
+##################################################################
+
 def plot_results(results):
     """Plots convergence and runtime for the FFT formulation."""
     # Reflection Coefficient Plot
@@ -283,17 +376,24 @@ def plot_results(results):
     plt.tight_layout()
     plt.savefig("results/fft_runtime_plot.png", dpi=200)
     plt.close()
-
+    
+###############################################################
 
 if __name__ == "__main__":
-    if __name__ == "__main__":
-    print(
-        f"JAX x64 enabled: {jax.config.read('jax_enable_x64')}, "
-        f"backend: {jax.default_backend()}, "
-        f"JAX version: {jax.__version__}"
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--study",
+        choices=["convergence", "wavelength"],
+        default="convergence",
     )
 
-    results = convergence_study(
-        fmm_formulations=(fmm.Formulation.FFT,)
-    )
-    plot_results(results)
+    study = parser.parse_args().study
+
+    if study == "wavelength":
+        wavelength_sweep(wavelengths_nm=range(400, 701, 5))
+    else:
+        results = convergence_study(
+            fmm_formulations=(fmm.Formulation.FFT,)
+        )
+        plot_results(results)

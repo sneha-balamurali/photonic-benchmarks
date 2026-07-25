@@ -29,6 +29,7 @@ pcall(loadstring(S4.arg))
 -- Otherwise default to 'fft'.
 -- Example: S4 'NG=10; form="fft"' metal_grating.lua
 form = form or 'fft'
+study = study or 'convergence'
 
 -- Physical parameters. All lengths use nanometers.
 local pitch_nm = 180
@@ -242,4 +243,25 @@ local function run_convergence_study()
 	end
 end
 
-run_convergence_study()
+local function run_wavelength_sweep()
+	print("wavelength_nm,R_s")
+
+	for wavelength = 400, 700, 5 do
+		wavelength_nm = wavelength
+
+		local r_s =
+			solve_and_extract_reflection(29, "s")
+
+		print(string.format(
+			"%d,%.12g",
+			wavelength,
+			magnitude_squared(r_s)
+		))
+	end
+end
+
+if study == "wavelength" then
+	run_wavelength_sweep()
+else
+	run_convergence_study()
+end
