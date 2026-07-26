@@ -55,9 +55,10 @@ The aim is to represent the same physical structures in different RCWA solvers a
   - Compares the FMMax TE and S4 s-polarized wavelength sweeps.
 
 - [Comparison results](Comparison/results/)
-  - `compare_te_convergence_1.png`
-  - `compare_tm_convergence_1.png`
-  - `compare_te_wavelength_sweep.png`
+  - [compare_te_convergence_1.png](Comparison/results/compare_te_convergence_1.png)
+  - [compare_tm_convergence_1.png](Comparison/results/compare_tm_convergence_1.png)
+  - [compare_te_wavelength_sweep.png](Comparison/results/compare_te_wavelength_sweep.png)
 
 **Running the benchmarks:**
-- [Basic run commands for the scripts](/photonic-benchmarks/running_benchmarks.md)
+- [Basic run commands for the scripts](running_benchmarks.md)
+

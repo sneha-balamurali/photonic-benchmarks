@@ -8,7 +8,7 @@ cd fmmax
 ```
 
 ### FMMax wavelength sweep
-```
+```bash
 cd fmmax
 ../../fmmax/.venv/bin/python metal_grating_benchmark.py --study wavelength
 ```
