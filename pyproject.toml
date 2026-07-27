@@ -1,0 +1,11 @@
+[project]
+name = "photonic-benchmarks"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "metarcwa",
+    "numpy>=2.5.1",
+]
+
+[tool.uv.sources]
+metarcwa = { git = "https://github.com/RodionovSA/metarcwa.git" }
