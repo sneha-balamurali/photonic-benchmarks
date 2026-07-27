@@ -1,64 +1,113 @@
 # Photonic Benchmarks
 
-This repository contains benchmarking implementations for Rigorous Coupled Wave Analysis (RCWA) solvers.
+## Project Goal
 
-The aim is to represent the same physical structures in different RCWA solvers and compare their reflection results, convergence behaviour, and solver-specific runtimes.
+![workflow](image/metal_grating.png)
 
-**Repository Provides:**
+The goal of the internship is to develop a python based benchmarking framework for comparing RCWA electromagnetic solvers.
 
-- benchmark geometries
-- convergence studies 
-- runtime comparisons
-- accuracy comparisons
-- documentation
+A user will be able to define a periodic layered photonic structure and its simulation settings in a YAML file, Python then loads it into a structured configuration object and the appropriate backend translates the configuration into FMMax or S4 commands. 
 
+S4 and FMMax will return results in a standardised format so that their outputs can be compared without writing seperate comparison logic for every structure. 
 
-## Solvers:
+The framework will initially be demonstrated using a 1D metal grating/2D square particle. 
 
-- [FMMax (JAX)](https://github.com/facebookresearch/fmmax)
-- [S⁴](https://web.stanford.edu/group/fan/S4/)
+The project will also have reusable functions for convergence, and nondispersive wavelength studies and etc. 
 
-## Repository Structure
+The main framework will be completed by the end of August. The remaining time in September will be reserved for debugging, numerical investigation, documentation and any required report.
 
-**FMMax:**
-- Metal Grating:
-    - [metal_grating_benchmark.py](fmmax/metal_grating_benchmark.py)
-        - Main FMMax benchmark implementation
-        - Performs convergence studies for the metal grating benchmark and records reflection coefficients
-        - Defines the original metal-grating geometry reproduced by the S4 implementation
-        - a s/TE wavelength sweep from 400-700nm in 5nm steps at 841 harmonic terms
-    - [metal_grating_debug.py](fmmax/metal_grating_debug.py)
-        - Debugging version of the FMMax benchmark
-        - Prints intermediate quantities and checks for NaN values to help diagnose numerical issues
-        - Used for validating modifications before incorporating into main benchmark
+## Project Layout
 
-**$S^4$:**
-- Metal Grating:
-    - [metal_grating.lua](s4/metal_grating.lua)
-        - S4 implementation of the FMMax metal grating benchmark
-        - Reproduces the benchmark geometry, material parameters, and simulation settings using the $S^4$ Lua interface
-        - Runs convergence or wavelength studies selected through the study command-line variable. It reports complex specular reflection coefficients, reflectance, and CPU time.
-    - [plot_metal_grating.py](s4/plot_metal_grating.py)
-        - Reads the benchmark CSV with the results from metal_grating.lua and generates convergence and runtime plots.
-    - [metal_grating_doc.md](s4/metal_grating_doc.md)
-        - Documentation describing the S4 benchmark implementation
-    - [results/](s4/results/)
-        - Stores CSV benchmark outputs and generated figures
+Photonic bench:
+- `configs/`: Stores values for each simulation
+    - `metal_grating.yaml`
+    - `square_particle.yaml`
+- `model/` : Defines how the physical problem and numerical settings and results are represented in Python e.g.: 
+    - `config.py`
+        - defines the configuration dataclasses
+        - converts the configuration to and from dictonaries
+        - contains the common physical settings and solver-specific numerical settings
+    - `result.py`
+        - defines the standard result format returned by FMMax and S4
+- `backends/`: Translates the common configuration into solver ready format
+    - `s4_backend.py`
+        - Creates the s4 simulation
+        - Creates the materials, lattice, layers and patterns
+        - Applies the S4 numerical options
+        - Runs the simulation
+        - Extracts and returns the results
+    - `fmmax_backend.py`  
+        - Creates the FMMax lattice and geometry
+        - Generates the Fourier expansions
+        - Solves the layers and constructs the scattering matrix
+        - Extracts and returns the requested results
+- `studies/`: While the backend performs one simulation, a study can perform several simulations in a controlled series. 
+    - `convergence.py`
+        - Changes basis while physical problem is fixed
+    - `wavelength_sweep.py`
+        - Changes wavelength while holding everything else fixed. 
+- `validation/`: To check whether the results returned appear reliable
+    - `failures.py`
+        - Checks for NaNs, infinite values
+    - `discrepancy.py`
+        - Compares FMMax and S4 results
+- `reports/`: Turns results into readable figures and summaries
+    - `plots.py`
+        - TE convergence plots, TM convergence plots, wavelength plots, runtime plots and etc
+- `results/`: Contains generated CSV files, plots and other data
+- `docs/`: Usage instructions and documents any issues found 
+- `run_benchmark.py`: The script you run from terminal to load YAML, create the Python configuration object and run your simulation and print or save results
 
-**Cross-solver comparisons:**
+## Week 1
 
-- [compare_metal_grating.py](Comparison/compare_metal_grating.py)
-  - Compares FMMax FFT with parallelogramic truncation against S4 FFT.
-  - Produces separate TE/s and TM/p convergence plots.
+### Goal: Implement the smallest complete YAML to S4 simulation route
 
-- [compare_metal_grating_wavelength_sweep.py](Comparison/compare_metal_grating_wavelength_sweep.py)
-  - Compares the FMMax TE and S4 s-polarized wavelength sweeps.
+### Tasks:
+- Create a new development branch on Git
+- Check the parameters currently coded into the S4 Python files
+- Define the first S4 config dataclass
+- Implement `to_dict()` and `from_dict()`
+- Create a matching metal grating or square particle YAML file
+- Include the requried S4 formulations, precision, and options settings
+- Implement the S4 backend for one simulation
+- Return a structured S4 result
 
-- [Comparison results](Comparison/results/)
-  - [compare_te_convergence_1.png](Comparison/results/compare_te_convergence_1.png)
-  - [compare_tm_convergence_1.png](Comparison/results/compare_tm_convergence_1.png)
-  - [compare_te_wavelength_sweep.png](Comparison/results/compare_te_wavelength_sweep.png)
+## Week 2
 
-**Running the benchmarks:**
-- [Basic run commands for the scripts](running_benchmarks.md)
+### Goal: Implement the smallest complete YAML to FMMAx simulation route
 
+### Tasks:
+- Identify the FMMax specific settings
+- Implement the FMMax YAML and configuration route
+- Implement the FMMax backend 
+- Define the results and update S4 backend if needed to also return this result format
+- Reproduce metal grating/square particle test
+- Compare results with previous results 
+
+## Week 3
+
+### Goal: Add studies and another geometry
+
+### Tasks:
+- Implement the convergence study
+- Implement the wavelength study
+- Add another geometry to FMMax and S4
+
+## Week 4:
+
+### Goal: Numerical Validation 
+
+### Tasks:
+- Add failure/non-finite value reporting
+- Add solver-discrepancy calculations to compare FMMax and S4 results
+- Investigate TM fluctuations
+- Record the actual basis used by each solver
+
+## Week 5: 
+
+### Goal: Producable a useable framework
+
+### Tasks: 
+- Clean package layout
+- Document installation and etc
+- Record any issues found
