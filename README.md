@@ -19,95 +19,101 @@ The main framework will be completed by the end of August. The remaining time in
 ## Project Layout
 
 Photonic bench:
-- `configs/`: Stores values for each simulation
+- `configs/`: Stores values for each benchmark
     - `metal_grating.yaml`
     - `square_particle.yaml`
 - `model/` : Defines how the physical problem and numerical settings and results are represented in Python e.g.: 
     - `config.py`
-        - defines the configuration dataclasses
-        - converts the configuration to and from dictonaries
-        - contains the common physical settings and solver-specific numerical settings
+        - Defines the top-level benchmark configuration
+        - Uses MetaRCWA's existing model classes and numerical configuration
+        - Stores the additional solver-specific settings required by S4 and FMMax
+        - Loads configuration information from YAML
     - `result.py`
-        - defines the standard result format returned by FMMax and S4
-- `backends/`: Translates the common configuration into solver ready format
+        - Defines the standard result format returned by FMMax and S4
+- `backends/`: Translates the common MetaRCWA model into solver-ready commands.
     - `s4_backend.py`
-        - Creates the s4 simulation
-        - Creates the materials, lattice, layers and patterns
-        - Applies the S4 numerical options
+        - Creates the S4 simulation
+        - Creates the S4 materials, lattices, layers and patterns
+        - Applies the supported S4 numerical settings
         - Runs the simulation
-        - Extracts and returns the results
-    - `fmmax_backend.py`  
-        - Creates the FMMax lattice and geometry
-        - Generates the Fourier expansions
-        - Solves the layers and constructs the scattering matrix
         - Extracts and returns the requested results
+    - `fmmax_backend.py`  
+        - Creates the FMMax lattice and geometry representations
+        - Generates the Fourier expansion
+        - Solves the layers and constructs the scattering matrix
+        - Extract and returns the requested results
 - `studies/`: While the backend performs one simulation, a study can perform several simulations in a controlled series. 
     - `convergence.py`
         - Changes basis while physical problem is fixed
     - `wavelength_sweep.py`
-        - Changes wavelength while holding everything else fixed. 
+        - Changes wavelength while holding everything else fixed. Initial wavelength studies will be nondispersive where material permittivies are held constant.
 - `validation/`: To check whether the results returned appear reliable
     - `failures.py`
-        - Checks for NaNs, infinite values
+        - Checks for failed simulations, NaNs, infinite values
     - `discrepancy.py`
-        - Compares FMMax and S4 results
+        - Compares corresponding FMMax and S4 results
 - `reports/`: Turns results into readable figures and summaries
     - `plots.py`
         - TE convergence plots, TM convergence plots, wavelength plots, runtime plots and etc
-- `results/`: Contains generated CSV files, plots and other data
+- `results/`: Contains generated CSV files, plots and other output data
 - `docs/`: Usage instructions and documents any issues found 
-- `run_benchmark.py`: The script you run from terminal to load YAML, create the Python configuration object and run your simulation and print or save results
+- `run_benchmark.py`: Terminal facing script that loads the YAML, creates the benchmark configuration, runs selected solver and prints or save results
 
-## Week 1
+## Week 1 26/07/2026 - 30/07/2026
 
-### Goal: Implement the smallest complete YAML to S4 simulation route
-
-### Tasks:
-- Create a new development branch on Git
-- Check the parameters currently coded into the S4 Python files
-- Define the first S4 config dataclass
-- Implement `to_dict()` and `from_dict()`
-- Create a matching metal grating or square particle YAML file
-- Include the requried S4 formulations, precision, and options settings
-- Implement the S4 backend for one simulation
-- Return a structured S4 result
-
-## Week 2
-
-### Goal: Implement the smallest complete YAML to FMMAx simulation route
+### Goal: Use MetaRCWA's existing physical model and configuration to run a square particle simulation through S4 and FMMax
 
 ### Tasks:
-- Identify the FMMax specific settings
-- Implement the FMMax YAML and configuration route
-- Implement the FMMax backend 
-- Define the results and update S4 backend if needed to also return this result format
-- Reproduce metal grating/square particle test
-- Compare results with previous results 
+- Understand the relevant MetaRCWA model class which includes `Lattice`, `Layer`,`Medium`, `Stack`, `Source`, `Config`.
+- Define a benchmark configuration that combines a physical model constructed using MetaRCWA with the numerical settings required to run that model in S4 and FMMax
+- Create a square particle YAML configuration
+- Implement the backend that will translate to S4 ready
+- Implement a function, say `run_s4()` to run a simulation
+- Repeat for FMMax
+- Define a minimal standard result format
+- Check both backends return the same result
 
-## Week 3
+## Week 2 02/08/2026 - 06/08/2026
 
-### Goal: Add studies and another geometry
+### Goal: Shared Studies
 
 ### Tasks:
 - Implement the convergence study
-- Implement the wavelength study
-- Add another geometry to FMMax and S4
+- Implement the nondispersive wavelength study
+- TE/s and TM/p comparison 
+- Runtime collection
+- Save study results in a common CSV format
+- Save configuration and solver-version data with result
+- Add a YAML-loading test or some other basic configuration/backened test 
 
-## Week 4:
+## Week 3 09/08/2026 - 13/08/2026
+
+### Goal: Add another geometry
+
+### Tasks:
+- YAML to S4 and FMMax results pipelines repeated for a new geometry
+- Conduct the studies for the new geometry
+
+## Week 4: 16/08/2026 - 20/08/2026
 
 ### Goal: Numerical Validation 
 
 ### Tasks:
 - Add failure/non-finite value reporting
 - Add solver-discrepancy calculations to compare FMMax and S4 results
-- Investigate TM fluctuations
-- Record the actual basis used by each solver
+- Record the requested and actual basis information used by each solver
+- Investigate the previously observed TE offset
+- Investigate the previously observed TM fluctuations
+- Record the numerical options enbled by each backend and perform targeted, one at a time tests of the formulation, factorisation, smoothing, and precision settings in order to explain any TM vs TE or FMMax vs S4 discrepancies 
 
-## Week 5: 
+## Week 5: 23/08/2026 - 27/08/2026
 
 ### Goal: Producable a useable framework
 
 ### Tasks: 
-- Clean package layout
-- Document installation and etc
+- Clean API and package layout 
+- Document installation and example commands
+- Add a YAML reference explaining each supported field, its meaning, units, accepted values and an example.
 - Record any issues found
+- Basic configuration and backend tests to confirm that the essential parts of this benchmarking framework work where you have a small set of tests confirming that the YAML files load correctly, that any bad settings produce a clear error early on instead of causing failure later e.g. flagging a negative basis, and etc. 
+- Plan for September (Will have 3 weeks and 2 days after the end of Week 5)
