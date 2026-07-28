@@ -84,7 +84,7 @@ Photonic bench:
 - Runtime collection
 - Save study results in a common CSV format
 - Save configuration and solver-version data with result
-- Add a YAML-loading test or some other basic configuration/backened test 
+- Add a YAML-loading test or some other basic configuration/backend test 
 
 ## Week 3 09/08/2026 - 13/08/2026
 
