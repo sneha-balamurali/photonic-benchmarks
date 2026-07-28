@@ -3,7 +3,7 @@ name = "photonic-benchmarks"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "metarcwa",
+    "metarcwa[dispertorch,metashapes]",
     "numpy>=2.5.1",
 ]
 
