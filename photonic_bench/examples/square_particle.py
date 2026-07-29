@@ -8,7 +8,7 @@ from metashapes.shape import Rectangle
 from dispertorch import ConstantEps
 from metarcwa.model.adapters import from_dispertorch, from_metashapes
 
-def build_model(particle_side_length_nm: torch.Tensor,
+def build_square_particle_model(particle_side_length_nm: torch.Tensor,
                 planarization_layer_thickness_nm: torch.Tensor,
                 patterned_layer_thickness_nm: torch.Tensor,
                 lattice_period_nm: torch.Tensor,
@@ -92,30 +92,32 @@ def build_model(particle_side_length_nm: torch.Tensor,
     square_geometry = Rectangle(center = center,
                                 size = size,
                                 angle = angle,
-                                corner_radius = corner_radius
+                                corner_radius = corner_radius,
                                 )
 
     # Define finite Layers
     planarization_layer = Layer(medium_solid = planarization_medium, 
-                                thickness = planarization_layer_thickness_nm
+                                thickness = planarization_layer_thickness_nm,
                                 )
     patterned_layer = Layer(medium_solid = particle_medium, 
                             thickness = patterned_layer_thickness_nm,
                             medium_void = pattern_background_medium, 
-                            shape_fn = from_metashapes(square_geometry)
+                            shape_fn = from_metashapes(square_geometry),
                             )
 
     # Stack the layers
     stack = Stack(incidence = incidence_medium,
                  layers = [planarization_layer, patterned_layer],
                  transmission = transmission_medium, 
-                 lattice = lattice
+                 lattice = lattice,
                  )
 
     # Define the source
     source = Source(wavelength = wavelength_nm, 
                     theta = theta_rad,
-                    phi = phi_rad
+                    phi = phi_rad,
                     )
 
-    return Model(stack,source)
+    return Model(stack=stack,
+                source = source,
+                )

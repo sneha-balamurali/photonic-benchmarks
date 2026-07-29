@@ -1,0 +1,62 @@
+# A name used to identify this benchmark in saved results.
+name: square_particle
+
+# Materials that can be referenced by name in the stack below.
+# Permittivity is written as [real part, imaginary part].
+materials:
+  air:
+    permittivity: [1.0, 0.0]
+
+  dielectric:
+    permittivity: [2.25, 0.0]
+
+  metal:
+    permittivity: [-7.632, 0.731]
+
+# The structure repeats every 180 nm in both in-plane directions.
+lattice:
+  type: rectangular
+  period_nm: [180.0, 180.0]
+
+# Plane-wave illumination.
+source:
+  wavelength_nm: 500.0
+  theta_rad: 0.0
+  phi_rad: 0.0
+
+# Layers are listed from the incidence side to the transmission side.
+stack:
+  incidence: air
+  transmission: metal
+
+  layers:
+    # A layer containing only one material.
+    - type: homogeneous
+      material: dielectric
+      thickness_nm: 20.0
+
+    # A dielectric layer containing a metal square.
+    - type: patterned
+      background: dielectric
+      thickness_nm: 80.0
+      objects:
+        - shape: rectangle
+          material: metal
+          center_nm: [90.0, 90.0]
+          size_nm: [60.0, 60.0]
+
+# Shared numerical settings used to resolve the MetaRCWA model.
+numerics:
+  nx: 180
+  ny: 180
+  m: 5
+  n: 5
+  truncation: circular
+
+# Initial solver-specific settings.
+# The exact field names and basis mapping still need to be confirmed.
+s4:
+  basis_size: 121
+
+fmmax:
+  approximate_num_terms: 121
