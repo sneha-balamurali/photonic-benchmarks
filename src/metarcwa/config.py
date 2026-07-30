@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import torch
+
 from src.config import Config
 from metarcwa.config import Config as metarcwa_config
 
@@ -9,4 +11,17 @@ class MetaRCWAConfig(metarcwa_config):
     @classmethod
     def from_config(config: Config):
         """ Prepares metarcwa config from the standard config. """
-        pass
+
+        return cls(
+            dtype=config.dtype
+            device=config.device
+            nx=config.nx
+            ny=config.ny
+            m=config.m
+            n=config.n
+            truncation=config.truncation
+
+        # Temporary baseline for the first working route
+        # Can expose MetaRCWA factorisation and etc later
+        )
+        
