@@ -5,7 +5,7 @@ import torch
 from src.config import Config
 from metarcwa import Config as metarcwa_config
 
-DTYPE_MAP = {
+_DTYPE_MAP = {
     "float32": torch.float32,
     "float64": torch.float64
     }
