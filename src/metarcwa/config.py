@@ -24,9 +24,10 @@ class MetaRCWAConfig(metarcwa_config):
             ny=config.ny,
             m=config.m,
             n=config.n,
-            truncation=config.truncation
+            truncation=config.truncation,
 
-        # Temporary baseline for the first working route
-        # Can expose MetaRCWA factorisation and etc later
+            # Temporary baseline for the first working route
+            # Can expose MetaRCWA factorisation and etc later
+            factorization=None,
         )
         
