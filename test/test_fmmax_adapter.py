@@ -2,6 +2,7 @@ import jax.numpy as jnp
 from fmmax import basis, fmm
 
 from src.fmmax.config import FMMaxConfig
+from test.test_config import create_example_config
 
 def test_fmmax_adapter() -> None:
     common = create_example_config()
@@ -14,3 +15,8 @@ def test_fmmax_adapter() -> None:
     assert fmmax_config.approximate_num_terms == 49
     assert fmmax_config.truncation is basis.Truncation.CIRCULAR
     assert fmmax_config.formulation is fmm.Formulation.FFT
+
+if __name__ == "__main__":
+    test_fmmax_adapter()
+
+    print("FMMax adapter check passed.")

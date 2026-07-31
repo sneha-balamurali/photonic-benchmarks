@@ -4,7 +4,8 @@ import torch
 from typing import Tuple
 
 from src.fmmax.config import FMMaxConfig
-from metarcwa import Model, Config
+from metarcwa import Model
+from src.config import Config
 
 
 def run_fmmax(model: Model, config: Config) -> Tuple[torch.Tensor, torch.Tensor,

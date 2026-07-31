@@ -241,8 +241,8 @@ wheels = [
 
 [[package]]
 name = "metarcwa"
-version = "0.1.0"
-source = { git = "https://github.com/RodionovSA/metarcwa.git#d7f536744eba8b04bdf0e6b77c68be4b36a44335" }
+version = "0.2.0"
+source = { git = "https://github.com/RodionovSA/metarcwa.git#572c2efb4a6477b78072712de741e49aa342b103" }
 dependencies = [
     { name = "pyyaml" },
     { name = "torch" },

@@ -18,7 +18,7 @@ class MetaRCWAConfig(metarcwa_config):
         """ Prepares metarcwa config from the standard config. """
 
         return cls(
-            dtype=DTYPE_MAP[config.dtype],
+            dtype=_DTYPE_MAP[config.dtype],
             device=config.device,
             nx=config.nx,
             ny=config.ny,
