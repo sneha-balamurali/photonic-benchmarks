@@ -63,7 +63,10 @@ Photonic bench:
 
 ### Goal: Use MetaRCWA's existing physical model and configuration to run a square particle simulation through S4 and FMMax
 
-### Tasks:
+<details>
+
+<summary> Set Tasks: </summary>
+
 - Understand the relevant MetaRCWA model class which includes `Lattice`, `Layer`,`Medium`, `Stack`, `Source`, `Config`.
 - Define a benchmark configuration that combines a physical model constructed using MetaRCWA with the numerical settings required to run that model in S4 and FMMax
 - Create a square particle YAML configuration
@@ -72,12 +75,47 @@ Photonic bench:
 - Repeat for FMMax
 - Define a minimal standard result format
 - Check both backends return the same result
+</details>
+
+### Completed:
+
+- Created a new branch called `restructure-framework` with a folder called `photonic_bench` containing: 
+    - initial square-particle YAML configuration
+    - initial standard result format
+    - initial FMMax and S4 backend scaffolds
+    - initial `run_benchmark.py` to run commands from terminal
+    - initial dictionary conversion methods for configuration data
+    - MetaRCWA square particle model
+- Reviewed the example architecture provided by mentor.
+- Created the `restructure-framework-2` branch to implement the revised design while preserving the first prototype.
+- Reviewed the relevant MetaRCWA classes: `Medium`, `Lattice`, `Layer`, `Stack`, `Source`, `Model`, solver `Config`
+- Implemented a minimal common numerical `Config` containing:
+    - numerical precision
+    - device
+    - grid resolution
+    - Fourier harmonic limits
+    - truncation rule
+    - `to_dict()` and `from_dict()` for common config
+- Implemented a MetaRCWA config adapter
+- Added a test confirming MetaRCWA simulation route returns finite results
+- Resolved and inspected the `ModelSpec` to see what it returned and how it was represented
+- Implemented an initial FMMax config adapter
+- Implemented PyTorch to jax array conversion
+- Translated lattice vectors into FMMax format
+- Generated first FMMax Fourier Expansion
+- Added tests
 
 ## Week 2 02/08/2026 - 06/08/2026
 
-### Goal: Shared Studies
+### Goal: Complete the FMMax and S4 routes and beging shared studies
 
 ### Tasks:
+
+- Complete FMMax layer translation and simulation
+- Implement the S4 config adapter and simulation
+- Adapt the previous square-particle YAML to the revised framework and implement YAML loading
+- Define standard result format for all solvers and make them return it
+- terminal facing benchmark runner with the revised framework
 - Implement the convergence study
 - Implement the nondispersive wavelength study
 - TE/s and TM/p comparison 
