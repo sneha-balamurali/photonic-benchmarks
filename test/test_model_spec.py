@@ -12,6 +12,9 @@ def test_model_spec() -> None:
         ny=config.ny,
     )
 
+    print(type(model_spec))
+    print(model_spec)
+
     print("Number of finite layers:", len(model_spec.layers))
     print("Lattice vector a1:", model_spec.a1)
     print("Lattice vector a2:", model_spec.a2)
