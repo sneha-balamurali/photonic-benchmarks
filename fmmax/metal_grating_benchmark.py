@@ -109,7 +109,7 @@ def simulate_grating(
         and TM-polarization.
     """
     # Sample one square unit cell over [pitch_nm / 2, pitch_nm / 2)
-    # # `jnp.arange()` includes the lower endpoint but excludes the upper endpoint,
+    # `jnp.arange()` includes the lower endpoint but excludes the upper endpoint,
     # which avoids duplicating the same periodic boundary point.
     x_nm, _ = jnp.meshgrid(
         jnp.arange(-pitch_nm / 2, pitch_nm / 2, resolution_nm),

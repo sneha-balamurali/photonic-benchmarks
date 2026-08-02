@@ -9,7 +9,7 @@ from typing import Any
 jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
-from fmmax import basis, utils
+from fmmax import basis, utils, fmm, scattering
 from src.fmmax.config import FMMaxConfig
 from metarcwa import Model
 from src.config import Config
@@ -56,37 +56,17 @@ def torch_to_jax(value: torch.Tensor,
     return jax_array
 
 def prepare_fmmax_model(model:Model,
-                        config:Config) -> Tuple[Any, Any, Any]:
-    """ Prepares the FMMax model from the MetaRCWA model and config.
+                        config:Config) -> Tuple[Any, ...]:
+    """ Translate a MetaRCWA model into the initial FMMax simulation objects.
 
-    Just a first translation stage. It:
-
-    - Converts the common Config into FMMax-specific numerical settings.
-    - Resolves the MetaRCWA model at the requested resolution
-    - Converts the MetaRCWA lattice vectors from Pytorch tensors to JAX arrays.
-    - Generates the FMMax Fourier Expansion.
-
-    It does not yet translate layer permittivities, solve layer eigenmodes,
-    build the scattering matrix or calculate reflection or transmission coefficinet.
-    
-    Parameters
-    ----------
-    mode:
-        Solver-independent MetaRCWA physical model.
-    config:
-        Common configuration object with numerical settings
-        shared between solver adapters.
-    
-    Returns
-    -------
-    tuple:
-        Tuple containing the resolved model spec,
-        the JAX arrays for the lattice vectors a1 and a2, and the
-        FMMax Fourier expansion.
-
-    - model_spec: The resolved MetaRCWA model specification.
-    - lattice_vectors: The FMMax lattice vectors as JAX arrays.
-    - expansion: The Fourier basis selected by FMMax.
+    This function:
+    - translates the common numerical configuration
+    - resolves and rasterises the MetaRCWA model
+    - converts PyTorch tensors into JAX arrays
+    - creates the FMMax lattice and Fourier expansion 
+    - constructs homoegeneous and patterned permittivity arrays
+    - solves the eigenmodes of every layer
+    - combines the layers into a stack scattering matrix
     """
 
     cfg = FMMaxConfig.from_config(config)
@@ -108,6 +88,12 @@ def prepare_fmmax_model(model:Model,
 
     # Convert the model.spec wavelength into a JAX array.
     wavelength = torch_to_jax(model_spec.wavelength,dtype=cfg.real_dtype)
+    # MetaRCWA uses normalised in-planewave wavevector components kx0 and ky0, which are the
+    # in-plane wavevector components divided by the free-space wavenumber k0 = 2 * pi / wavelength.
+    # FMMax uses the actual in-plane wavevector components kx and ky.
+    kx = torch_to_jax(model_spec.kx0, dtype=cfg.real_dtype) * (2 * jnp.pi / wavelength)
+    ky = torch_to_jax(model_spec.ky0, dtype=cfg.real_dtype) * (2 * jnp.pi / wavelength)
+    in_plane_wavevector = jnp.stack([kx,ky], axis=-1)
 
     # Convert the incidence and transmission 
     # permittivities to Jax arrays
@@ -123,14 +109,26 @@ def prepare_fmmax_model(model:Model,
         layer_thicknesses.append(thickness)
 
         if isinstance(layer, HomogeneousLayer):
-            permittivity = torch_to_jax(layer.eps, dtype=cfg.complex_dtype)
-            layer_permittivities.append(permittivity)
-            elif isinstance(layer, PatternedLayer):
-                       solid_eps = torch_to_jax(layer.solid.eps, dtype=cfg.complex_dtype)
-                       void_eps = torch_to_jax(layer.void_eps, dtype=cfg.complex_dtype)    
+            permittivity = torch_to_jax(layer.medium.eps, dtype=cfg.complex_dtype)
+        elif isinstance(layer, PatternedLayer):
+                    solid_eps = torch_to_jax(layer.medium_solid.eps, dtype=cfg.complex_dtype)
+                    void_eps = torch_to_jax(layer.medium_void.eps, dtype=cfg.complex_dtype)
+                    pattern = torch_to_jax(layer.pattern, dtype=cfg.real_dtype)
+                    permittivity = utils.interpolate_permittivity(permittivity_solid = solid_eps, 
+                                                                    permittivity_void = void_eps, 
+                                                                    density = pattern)
+        layer_permittivities.append(permittivity)
 
-    pass
-    
+    # Create a list of all permittivities, including incidence and transmission in order
+    permittivities = [incidence_eps, *layer_permittivities, transmission_eps]
+
+    # Create a list of all thicknesses, including incidence and transmission in order
+    # The incidence and transmission media are semi-infinite, so they do not have finite
+    # propagation thicknesses. FMMax represents them with zero thickness at the two ends
+    # of the stack.
+    zero_thickness = jnp.asarray(0.0, dtype=cfg.real_dtype)
+    thicknesses = [zero_thickness, *layer_thicknesses, zero_thickness]
+
     # FMMax creates the actual reciprocal-space Fourier basis.
     # Its final number of terms may differ slightly from
     # approximate_num_terms to maintain symmetry in the expansion.
@@ -140,14 +138,33 @@ def prepare_fmmax_model(model:Model,
         truncation=cfg.truncation,  
     )
 
+    # Solve the electromagnetic eigenmodes independetly in every medium.
+    # and finite layer. The result describes how fields propagate through each layer.
+    formulation = cfg.formulation
+    layer_solve_results = [fmm.eigensolve_isotropic_media(wavelength = wavelength,
+                                                        in_plane_wavevector = in_plane_wavevector,
+                                                        primitive_lattice_vectors=lattice_vectors,
+                                                        permittivity = permittivity,
+                                                        expansion = expansion,
+                                                        formulation = formulation) 
+                                                        for permittivity in permittivities]
+                                                        
+    # Combine the individually solved layers into one scattering matrix for
+    # the complete incidence to transmission stack.                                                    
+    s_matrix = scattering.stack_s_matrix(layer_solve_results = layer_solve_result, 
+                                        layer_thicknesses = thicknesses)
+
     return (model_spec, 
             lattice_vectors, 
             expansion,
             wavelength,
+            in_plane_wavevector,
             incidence_eps,
             transmission_eps,
-            layer_permittivities,
-            layer_thicknesses)
+            permittivities,
+            thicknesses,
+            layer_solve_result,
+            s_matrix)
 
 # def run_fmmax(model: Model, config: Config) -> Tuple[torch.Tensor, torch.Tensor,
 #                                                         torch.Tensor, torch.Tensor]:
