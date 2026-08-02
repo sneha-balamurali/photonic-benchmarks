@@ -9,10 +9,11 @@ from typing import Any
 jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
-from fmmax import basis
+from fmmax import basis, utils
 from src.fmmax.config import FMMaxConfig
 from metarcwa import Model
 from src.config import Config
+from metarcwa.model.layer import HomogeneousLayer, PatternedLayer
 
 
 def torch_to_jax(value: torch.Tensor, 
@@ -101,10 +102,35 @@ def prepare_fmmax_model(model:Model,
     # MetaRCWA calls its lattice vectors a1 and a2.
     # FMMax calls them u and v. They are the same vectors.
     lattice_vectors = basis.LatticeVectors(
-        u = torch_to_jax(model_spec.a1,dtype=cfg.dtype),
-        v = torch_to_jax(model_spec.a2,dtype=cfg.dtype),
+        u = torch_to_jax(model_spec.a1,dtype=cfg.real_dtype),
+        v = torch_to_jax(model_spec.a2,dtype=cfg.real_dtype),
     )
 
+    # Convert the model.spec wavelength into a JAX array.
+    wavelength = torch_to_jax(model_spec.wavelength,dtype=cfg.real_dtype)
+
+    # Convert the incidence and transmission 
+    # permittivities to Jax arrays
+    incidence_eps = torch_to_jax(model_spec.incidence.eps,dtype=cfg.complex_dtype)
+    transmission_eps = torch_to_jax(model_spec.transmission.eps,dtype=cfg.complex_dtype)
+    
+    # Convert the layer permittivities and thicknesses to JAX arrays.
+    layer_permittivities = []
+    layer_thicknesses = []
+
+    for layer in model_spec.layers:
+        thickness = torch_to_jax(layer.thickness,dtype=cfg.real_dtype)
+        layer_thicknesses.append(thickness)
+
+        if isinstance(layer, HomogeneousLayer):
+            permittivity = torch_to_jax(layer.eps, dtype=cfg.complex_dtype)
+            layer_permittivities.append(permittivity)
+            elif isinstance(layer, PatternedLayer):
+                       solid_eps = torch_to_jax(layer.solid.eps, dtype=cfg.complex_dtype)
+                       void_eps = torch_to_jax(layer.void_eps, dtype=cfg.complex_dtype)    
+
+    pass
+    
     # FMMax creates the actual reciprocal-space Fourier basis.
     # Its final number of terms may differ slightly from
     # approximate_num_terms to maintain symmetry in the expansion.
@@ -114,7 +140,14 @@ def prepare_fmmax_model(model:Model,
         truncation=cfg.truncation,  
     )
 
-    return model_spec, lattice_vectors, expansion
+    return (model_spec, 
+            lattice_vectors, 
+            expansion,
+            wavelength,
+            incidence_eps,
+            transmission_eps,
+            layer_permittivities,
+            layer_thicknesses)
 
 # def run_fmmax(model: Model, config: Config) -> Tuple[torch.Tensor, torch.Tensor,
 #                                                         torch.Tensor, torch.Tensor]:

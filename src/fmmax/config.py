@@ -6,8 +6,8 @@ from fmmax import basis, fmm
 from src.config import Config
 
 _DTYPE_MAP = {
-    "float32": jnp.float32,
-    "float64": jnp.float64,
+    "float32": (jnp.float32,jnp.complex64),
+    "float64": (jnp.float64,jnp.complex128),
 }
 
 # The common Config uses strings because strings are easy to store in YAML.
@@ -45,7 +45,8 @@ class FMMaxConfig:
         FMMax method used for patterned layers. FFT is our initial baseline.
     """
     
-    dtype: type
+    real_dtype: type
+    complex_dtype: type
     device: str
     nx: int
     ny: int
@@ -80,10 +81,13 @@ class FMMaxConfig:
         approximate_num_terms = (
             (2 * config.m + 1) * (2 * config.n + 1)
         )
-
+        # Retrieve real and complex dtypes from the map.
+        real_dtype,complex_dtype = _DTYPE_MAP[config.dtype]
+        
         return cls(
             # Convert the common strings into objects JAX and FMMax expect.
-            dtype=_DTYPE_MAP[config.dtype],
+            real_dtype=real_dtype,
+            complex_dtype=complex_dtype,
             device=config.device,
             nx=config.nx,
             ny=config.ny,

@@ -10,7 +10,8 @@ def test_fmmax_adapter() -> None:
     common = create_example_config()
     fmmax_config = FMMaxConfig.from_config(common)
 
-    assert fmmax_config.dtype == jnp.float64
+    assert fmmax_config.real_dtype == jnp.float64
+    assert fmmax_config.complex_dtype == jnp.complex128
     assert fmmax_config.device == "cpu"
     assert fmmax_config.nx == 32
     assert fmmax_config.ny == 32
