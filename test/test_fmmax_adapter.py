@@ -4,7 +4,7 @@ from fmmax import basis, fmm
 from src.fmmax.config import FMMaxConfig
 from test.test_config import create_example_config
 from test.test_metarcwa import create_small_config, create_small_model
-from src.fmmax.simulation import prepare_fmmax_model
+from src.fmmax.simulation import PreparedFMMaxModel
 
 def test_fmmax_adapter() -> None:
     common = create_example_config()
@@ -25,27 +25,44 @@ def test_fmmax_preparation() -> None:
     model = create_small_model()
     config = create_small_config()
 
-    model_spec, lattice_vectors, expansion = prepare_fmmax_model(
-        model,
-        config,
+    prepared = PreparedFMMaxModel.from_model(
+    model,
+    config,
     )
 
-    print("MetaRCWA lattice a1:", model_spec.a1)
-    print("FMMax lattice u:", lattice_vectors.u)
-    print("MetaRCWA lattice a2:", model_spec.a2)
-    print("FMMax lattice v:", lattice_vectors.v)
+    print("MetaRCWA lattice a1:", prepared.model_spec.a1)
+    print("FMMax lattice u:", prepared.lattice_vectors.u)
+    print("MetaRCWA lattice a2:", prepared.model_spec.a2)
+    print("FMMax lattice v:", prepared.lattice_vectors.v)
 
-    print("Requested terms:", (2 * config.m + 1) * (2 * config.n + 1))
-    print("Actual FMMax terms:", expansion.num_terms)
+    print(
+        "Requested terms:",
+        (2 * config.m + 1) * (2 * config.n + 1),
+    )
+    print("Actual FMMax terms:", prepared.expansion.num_terms)
     print("FMMax orders:")
-    print(expansion.basis_coefficients)
+    print(prepared.expansion.basis_coefficients)
 
-    # The common float64 setting should survive conversion from PyTorch to JAX.
-    assert lattice_vectors.u.dtype == jnp.float64
-    assert lattice_vectors.v.dtype == jnp.float64
+    assert prepared.lattice_vectors.u.dtype == jnp.float64
+    assert prepared.lattice_vectors.v.dtype == jnp.float64
 
-    # FMMax may adjust the requested number to keep its basis symmetric.
-    assert expansion.num_terms > 0
+    assert prepared.lattice_vectors.u.shape == (2,)
+    assert prepared.lattice_vectors.v.shape == (2,)
+
+    assert prepared.wavelength.shape == (1, 1, 1)
+    assert prepared.in_plane_wavevector.shape == (1, 1, 1, 2)
+
+    assert len(prepared.permittivities) == 4
+    assert len(prepared.thicknesses) == 4
+    assert len(prepared.layer_solve_results) == 4
+
+    assert prepared.permittivities[0].shape == (1, 1, 1, 1, 1)
+    assert prepared.permittivities[1].shape == (1, 1, 1, 1, 1)
+    assert prepared.permittivities[2].shape == (1, 1, 1, 32, 32)
+    assert prepared.permittivities[3].shape == (1, 1, 1, 1, 1)
+
+    assert prepared.expansion.num_terms > 0
+    assert prepared.s_matrix is not None
 
 
 if __name__ == "__main__":
