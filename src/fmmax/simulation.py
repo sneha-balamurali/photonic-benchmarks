@@ -8,7 +8,7 @@ from dataclasses import dataclass
 jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
-from fmmax import basis, utils, fmm, scattering
+from fmmax import basis, utils, fmm, scattering, fields
 from src.fmmax.config import FMMaxConfig
 from metarcwa import Model
 from src.config import Config
@@ -61,9 +61,9 @@ def prepare_uniform_permittivity(value: torch.Tensor,
     MetaRCWA stores an isotropic medium's permittivity as one complex value
     per wavelength, with shape (Nw).
 
-    FMMax treats the final two dimension of a permittivity array as the spatial
+    FMMax treats the final two dimensions of a permittivity array as the spatial
     unit-cell grid. A spatially uniform medium is represented by a 
-    one-by-one grid so the the final dimensions has to be (1,1).
+    one-by-one grid so the final dimensions has to be (1,1).
 
     This framework tries to preserve MetaRCWA's independent wavelength, theta, phi,
     sweep axes. The permittivity depends on wavelength but not on illumination angles. 
@@ -77,7 +77,7 @@ def prepare_uniform_permittivity(value: torch.Tensor,
     (wavelength, theta placeholder, phi placeholder, spatial axis 0, spatial axis 1)
 
     A dimension of length one tells JAX that the same material value can be reused
-    across that axis. So, each wavelength depended permittivity is reused for every
+    across that axis. So, each wavelength dependent permittivity is reused for every
     theta, phi and every spatial point in the uniform medium.
 
     ** For a patterned layer, the returned one by one spatial material arrays can later broadcast 
@@ -110,7 +110,7 @@ class PreparedFMMaxModel:
     """FMMax objects are prepared from one solver independent MetaRCWA model.
 
     This dataclass stores the intermediate objects needed for a FMMax simulation.
-    Class used because named fields are clearer than returning a long tuple whos meaning depends on
+    Class used because named fields are clearer than returning a long tuple whose meaning depends on
     the order of the position. 
 
     Attribute:
@@ -172,7 +172,7 @@ class PreparedFMMaxModel:
         - converts PyTorch tensors into JAX arrays
         - prepares wavelength and angle batch dimensions
         - creates the FMMax lattice and Fourier expansion
-        - constructs homoegeneous and patterned permittivity arrays
+        - constructs homogeneous and patterned permittivity arrays
         - solves the electromagnetic modes of every layer
         - builds the scattering matrix for the complete stack
         """
@@ -292,7 +292,7 @@ class PreparedFMMaxModel:
                 # Raise error if the layers are not
                 # supported by the layer classes translated above
                 raise TypeError(
-                    "Unsupported MetaRCWA layer type:"
+                    "Unsupported MetaRCWA layer type: "
                     f"{type(layer).__name__}"
                 )
             layer_permittivities.append(permittivity)
@@ -303,7 +303,7 @@ class PreparedFMMaxModel:
             *layer_permittivities,
             transmission_eps
         ]
-        # The two end media are semi-infinite and therefore dont have
+        # The two end media are semi-infinite and therefore don't have
         # finite propagation thickness.
         zero_thickness = jnp.asarray(0.0,
                                     dtype=cfg.real_dtype)
@@ -358,43 +358,115 @@ class PreparedFMMaxModel:
 def run_fmmax(
     model: Model,
     config: Config,
-    ) -> tuple[jax.Array, jax.Array]:
-    """Run FMMax and return zeroth-order s and p ploarised reflection.
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Run FMMax and return zeroth-order Rs, Rp, Ts, Tp.
 
-    This first implementation is for normal incidence. 
+    The incident plane wave uses diffraction order (0,0).
 
-    Returns
-    -------
-    Rs:
-        Reflectance for s polarised incidence
-    Rp: 
-        Reflectance for p polarised incidence    
+    The returned quantities are the co-polarised powers in
+    output order (0,0): 
+
+    - Rs: s incident -> s reflected
+    - Rp: p incident -> p reflected
+    - Ts: s incident -> s transmitted
+    - Tp: p incident -> p transmitted
+
+    Each returned array has shape (Nw, Ntheta, Nphi)
     """
 
     prepared = PreparedFMMaxModel.from_model(
         model=model,
-        config=config
+        config=config,
     )
-
+    
+    # num_terms is number of retained Fourier orders,
+    # number of selected (m,n) diffraction order pairs
     num_terms = prepared.expansion.num_terms
-    s_matrix = prepared.s_matrix
 
-    # FMMax stores 2 groups of num_terms channels for s and p
-    # Because zeroth diffraction order comes first
-    # index 0: zeroth-order TE/s channel
-    # index num_terms: zeroth-order TM/p channel
-
+    # FMMax puts diffraction order (0,0) first.
+    # The first num_terms channels are the first polarisation group
+    # The next num_terms channels are the second polarisation group
     s_index = 0
     p_index = num_terms
 
-    # For illumination from incidence side, s21 contains reflection
-    # coefficients. 
+    # s11 final two dimensions gives how strongly
+    # input index contributes to output index
+    # We keep every shape entry except the last
+    # and add a new shape tuple of 2 to represent 
+    # s or p explained below.
 
-    r_s = s_matrix.s21[..., s_index, s_index]
-    r_p = s_matrix.s21[..., p_index, p_index]
+    # Two independent input experiments:
+    # Source column 0: s-polarised order (0,0)
+    # Source column 1: p-polarised order (0,0)
+    # Shape:
+    # (Nw, Ntheta, Nphi, 2*num_terms, 2)
 
-    Rs = abs(r_s)**2
-    Rp = abs(r_p)**2
+    incident_amplitude = jnp.zeros(
+        prepared.s_matrix.s11.shape[:-1] + (2,),
+        dtype=prepared.s_matrix.s11.dtype
+    )
 
-    return Rs, Rp
+    # Set only diffraction order (m,n) = (0,0) equal 1 
+    # for s and p polarisation
+    incident_amplitude = incident_amplitude.at[
+        ...,s_index,0].set(1)
+    
+    incident_amplitude = incident_amplitude.at[
+        ..., p_index,1].set(1)
 
+    # s21 maps the incidence side input amplitudes 
+    # to the reflected amplitudes
+    reflected_amplitude = (
+        prepared.s_matrix.s21 @ incident_amplitude
+    )
+
+    # s11 maps incidence side input amplitudes to
+    # transmitted amplitudes
+    transmitted_amplitude = (
+        prepared.s_matrix.s11 @ incident_amplitude
+    )
+
+    # We define it such that there is no waves
+    # entering from the transmission side
+    zero_transmitted_backward = jnp.zeros_like(
+        transmitted_amplitude
+    )
+
+    # Calculate incident and reflected power in the
+    # incidence medium
+    incident_power, reflected_power = fields.amplitude_poynting_flux(
+        forward_amplitude = incident_amplitude,
+        backward_amplitude=reflected_amplitude,
+        layer_solve_result=prepared.layer_solve_results[0]
+    )
+
+    # Calculate transmitted power in the final medium
+    transmitted_power,_=fields.amplitude_poynting_flux(
+        forward_amplitude=transmitted_amplitude,
+        backward_amplitude=zero_transmitted_backward,
+        layer_solve_result=prepared.layer_solve_results[-1]
+    )
+
+    # Select the co-polarised output order (0,0) powers
+
+    # First selected index: output modal channel
+    # Second selected index: incident source column
+    incident_power_s = incident_power[...,s_index,0]
+    incident_power_p = incident_power[...,p_index,1]
+
+    reflected_power_s = reflected_power[...,s_index,0]
+    reflected_power_p = reflected_power[...,p_index,1]
+
+    transmitted_power_s = transmitted_power[...,s_index,0]
+    transmitted_power_p = transmitted_power[...,p_index,1]
+
+    # Backward going reflected flux has a negative sign
+    # because it travels opposite to the forward stack direction
+
+    Rs = -reflected_power_s / incident_power_s
+    Rp = -reflected_power_p / incident_power_p
+
+    Ts = transmitted_power_s / incident_power_s
+    Tp = transmitted_power_p / incident_power_p
+
+    return Rs, Rp, Ts, Tp

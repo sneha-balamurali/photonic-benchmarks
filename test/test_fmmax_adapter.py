@@ -71,23 +71,27 @@ def test_fmmax_reflection() -> None:
     model = create_small_model()
     config = create_small_config()
 
-    Rs, Rp = run_fmmax(
+    Rs, Rp, Ts, Tp = run_fmmax(
         model=model,
         config=config
     )
 
     print("FMMax Rs:", Rs)
     print("FMMax Rp:", Rp)
-    print("FMMax Rs shape:", Rs.shape)
-    print("FMMax Rp shape:", Rp.shape)
+    print("FMMax Ts:", Ts)
+    print("FMMax Tp:", Tp)
 
-    # Calculated values should be real, finite numbers
+    # Check returned finite are real and finite
     assert jnp.isfinite(Rs).all()
     assert jnp.isfinite(Rp).all()
+    assert jnp.isfinite(Ts).all()
+    assert jnp.isfinite(Tp).all()
 
-    # Reflected power can't be negative
-    assert(Rs >=0).all()
-    assert(Rp >=0).all()
+    # Check returned values are positive
+    assert (Rs >= 0).all()
+    assert (Rp >= 0).all()
+    assert (Ts >= 0).all()
+    assert (Tp >= 0).all()
 
 if __name__ == "__main__":
     test_fmmax_adapter()
