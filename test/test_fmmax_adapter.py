@@ -5,6 +5,7 @@ from src.fmmax.config import FMMaxConfig
 from test.test_config import create_example_config
 from test.test_metarcwa import create_small_config, create_small_model
 from src.fmmax.simulation import PreparedFMMaxModel
+from src.fmmax.simulation import run_fmmax
 
 def test_fmmax_adapter() -> None:
     common = create_example_config()
@@ -64,8 +65,32 @@ def test_fmmax_preparation() -> None:
     assert prepared.expansion.num_terms > 0
     assert prepared.s_matrix is not None
 
+def test_fmmax_reflection() -> None:
+    """Check that FMMax returns finite normal incidence reflectance"""
+
+    model = create_small_model()
+    config = create_small_config()
+
+    Rs, Rp = run_fmmax(
+        model=model,
+        config=config
+    )
+
+    print("FMMax Rs:", Rs)
+    print("FMMax Rp:", Rp)
+    print("FMMax Rs shape:", Rs.shape)
+    print("FMMax Rp shape:", Rp.shape)
+
+    # Calculated values should be real, finite numbers
+    assert jnp.isfinite(Rs).all()
+    assert jnp.isfinite(Rp).all()
+
+    # Reflected power can't be negative
+    assert(Rs >=0).all()
+    assert(Rp >=0).all()
 
 if __name__ == "__main__":
     test_fmmax_adapter()
     test_fmmax_preparation()
-    print("FMMax adapter and model preparation checks passed.")
+    test_fmmax_reflection()
+    print("All FMMax checks passed.")

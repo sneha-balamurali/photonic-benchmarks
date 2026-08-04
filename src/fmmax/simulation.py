@@ -354,3 +354,47 @@ class PreparedFMMaxModel:
             layer_solve_results=layer_solve_results,
             s_matrix=s_matrix,
         )
+
+def run_fmmax(
+    model: Model,
+    config: Config,
+    ) -> tuple[jax.Array, jax.Array]:
+    """Run FMMax and return zeroth-order s and p ploarised reflection.
+
+    This first implementation is for normal incidence. 
+
+    Returns
+    -------
+    Rs:
+        Reflectance for s polarised incidence
+    Rp: 
+        Reflectance for p polarised incidence    
+    """
+
+    prepared = PreparedFMMaxModel.from_model(
+        model=model,
+        config=config
+    )
+
+    num_terms = prepared.expansion.num_terms
+    s_matrix = prepared.s_matrix
+
+    # FMMax stores 2 groups of num_terms channels for s and p
+    # Because zeroth diffraction order comes first
+    # index 0: zeroth-order TE/s channel
+    # index num_terms: zeroth-order TM/p channel
+
+    s_index = 0
+    p_index = num_terms
+
+    # For illumination from incidence side, s21 contains reflection
+    # coefficients. 
+
+    r_s = s_matrix.s21[..., s_index, s_index]
+    r_p = s_matrix.s21[..., p_index, p_index]
+
+    Rs = abs(r_s)**2
+    Rp = abs(r_p)**2
+
+    return Rs, Rp
+
