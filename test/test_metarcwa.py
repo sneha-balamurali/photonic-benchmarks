@@ -47,10 +47,10 @@ def test_metarcwa_simulation() -> None:
     Rs, Rp, Ts, Tp = run_metarcwa(model, config)
 
     results = {
-        "Rs": Rs,
-        "Rp": Rp,
-        "Ts": Ts,
-        "Tp": Tp,
+        "Metarcwa Rs": Rs,
+        "Metarcwa Rp": Rp,
+        "Metarcwa Ts": Ts,
+        "Metarcwa Tp": Tp,
     }
     
     # Check for any NaN values
