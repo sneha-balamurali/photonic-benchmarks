@@ -8,6 +8,8 @@ from metarcwa import Model
 from src.config import Config
 from src.s4.config import S4Config
 
+from metarcwa.model.layer import HomogeneousLayer, PatternedLayer
+
 def tensor_to_tuple(value:torch.Tensor) -> tuple[float,float]:
     """Convert a two-component PyTorch tensor into an ordinary
     Python tuple.
@@ -21,7 +23,7 @@ def tensor_to_tuple(value:torch.Tensor) -> tuple[float,float]:
     its values.
     """
 
-    # Check that S4 lattice vecrors only contains 2 componenets
+    # Check that S4 lattice vectors only contains 2 componenets
     if value.numel() != 2:
         raise ValueError(
             "A S4 lattice vector must contain exactly 2 components."
@@ -31,6 +33,29 @@ def tensor_to_tuple(value:torch.Tensor) -> tuple[float,float]:
     flattened = value.detach().cpu().reshape(-1)
 
     return (float(flattened[0]),float(flattened[1]))
+
+def permittivity_at_wavelength(
+    value: torch.Tensor,
+    wavelength_index: int
+) -> complex:
+    """Select one wavelength's permittivity as a Python complex number.
+
+    MetaRCWA evaluates an isotropic material at every requested wavelength,
+    producing a tensor with shape (Nw,). S4 has one active material value at 
+    a time, so we select the value for one wavelength.
+
+    Parameters:
+    -----------
+    value:
+        Complex MetaRCWA permittivity tensor with shape (Nw)
+    wavelength_index:
+        Position of the wavelength to select. Index zero selects the first
+        wavelength.
+    """
+
+    flattened = value.detach().cpu().reshape(-1)
+
+    return complex(flattened[wavelength_index].item())
 
 @dataclass
 class PreparedS4Model:
@@ -56,11 +81,13 @@ class PreparedS4Model:
     """
 
     config: S4Config
+    model: Model
     model_spec: Any
     lattice_vectors: tuple[
         tuple[float,float],
         tuple[float,float]
     ]
+    wavelength_index: int
     simulation: Any
 
     @classmethod
@@ -68,6 +95,7 @@ class PreparedS4Model:
         cls, 
         model: Model,
         config: Config,
+        wavelength_index: int=0
         ) -> "PreparedS4Model":
         """Translate a MetaRCWA model into S4 simulation objects.
 
@@ -107,9 +135,96 @@ class PreparedS4Model:
         simulation.SetOptions(LatticeTruncation= 
                             cfg.lattice_truncation)
 
+        # S4 represents the semi-infinite incidence medium as the first
+        # layer with zero thickness
+        simulation.SetMaterial(
+            Name="incidence",
+            Epsilon=permittivity_at_wavelength(
+                model_spec.incidence.eps,
+                wavelength_index
+            )
+        )
+
+        # Layer order follows the direction of incidence,
+        # from top to bottom.
+        simulation.AddLayer(
+            Name="incidence",
+            Thickness=0.0,
+            Material="incidence"
+        )
+
+        # Add the finite layers in incidence to transmission order
+        for layer_index, layer in enumerate(model_spec.layers):
+            layer_name = f"layer_{layer_index}"
+
+            if isinstance(layer, HomogeneousLayer):
+                material_name = f"layer_{layer_index}_material"
+
+                simulation.SetMaterial(
+                    Name = material_name,
+                    Epsilon=permittivity_at_wavelength(
+                        layer.medium.eps,
+                        wavelength_index
+                    )
+                )
+            elif isinstance(layer, PatternedLayer):
+                # S4 creates a patterned layer by first filling the
+                # entire layer with its background material. Geometry
+                # regions made from different material will be inserted 
+                # in next implementation
+
+                material_name = f"layer_{layer_index}_material"
+                solid_material_name = f"layer_{layer_index}_solid"
+
+                simulation.SetMaterial(
+                    Name=material_name,
+                    Epsilon=permittivity_at_wavelength(
+                        layer.medium_void.eps,
+                        wavelength_index
+                    )
+                )
+
+                simulation.SetMaterial(
+                    Name=solid_material_name,
+                    Epsilon = permittivity_at_wavelength(
+                        layer.medium_solid.eps,
+                        wavelength_index
+                    )
+                )
+            else:
+                raise TypeError(
+                    "Unsupported MetaRCWA layer type:"
+                    f"{type(layer).__name__}"
+                )
+            
+            # Add the layers to the stack one by one
+            simulation.AddLayer(
+                Name=layer_name,
+                Thickness=tensor_to_tuple(layer.thickness),
+                Material=material_name
+            )
+        
+        # Set the final semi-infinite transmission medium as the final
+        # zero thickness layer at the end of the stack
+        simulation.SetMaterial(
+            Name="transmission",
+            Epsilon=permittivity_at_wavelength(
+                model_spec.transmission.eps,
+                wavelength_index
+            )
+        )
+
+        simulation.AddLayer(
+            Name="transmission",
+            Thickness=0.0,
+            Materials="transmission"
+        )
+
         return cls(
             config=cfg,
             model_spec=model_spec,
             lattice_vectors=lattice_vectors,
-            simulation=simulation
+            simulation=simulation,
+            wavelength_index=wavelength_index,
+            model=model
         )

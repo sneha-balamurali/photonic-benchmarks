@@ -60,6 +60,30 @@ def test_s4_preparation() -> None:
     assert math.isclose(reciprocal_a2[0], 0.0)
     assert math.isclose(reciprocal_a2[1], 1.0 / 180.0)
 
+    # GetBasisSet
+    actual_basis = prepared.simulation.GetBasisSet()
+
+    assert len(actual_basis) > 0
+    assert (0,0) in actual_basis
+
+    print("Requested S4 basis:", prepared.config.requested_num_basis)
+    print("Actual S4 basis size:", len(actual_basis))
+    print("Actual S4 orders:", actual_basis)
+
+    # Check the material stack along z
+    # z < 0: incidence medium
+    # 0 < z < 20: homogeneous planarization layer
+    # 20 < z < 100: patterned layer background before any geometry is added
+    # z > 100: transmission medium
+    # Argument gives the coordinate at which to call the dielectric constant
+    assert prepared.simulation.GetEpsilon(0,0,-1) == 1.0 + 0.0j
+    assert prepared.simulation.GetEpsilon(0,0,10) == 2.25 + 0.0j
+    assert prepared.simulation.GetEpsilon(0,0,50) == 2.25 + 0.0j
+
+    transmission_eps = prepared.simulation.GetEpsilon(0,0,101)
+
+    assert math.isclose(transmission_eps.real, -7.632)
+    assert math.isclose(transmission_eps.imag, 0.731)
 
 if __name__ == "__main__":
     test_s4_config()
