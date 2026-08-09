@@ -82,8 +82,16 @@ def test_s4_preparation() -> None:
 
     transmission_eps = prepared.simulation.GetEpsilon(0,0,101)
 
-    assert math.isclose(transmission_eps.real, -7.632)
-    assert math.isclose(transmission_eps.imag, 0.731)
+    assert math.isclose(transmission_eps.real, -7.632, rel_tol = 1e-6)
+    assert math.isclose(transmission_eps.imag, 0.731, rel_tol = 1e-6)
+
+    expected_transmission_eps = complex(
+                                        prepared.model_spec.transmission.eps[
+                                        prepared.wavelength_index
+                                        ].detach().cpu().item()
+    )
+
+    assert transmission_eps == expected_transmission_eps
 
 if __name__ == "__main__":
     test_s4_config()

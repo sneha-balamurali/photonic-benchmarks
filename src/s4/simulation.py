@@ -34,6 +34,17 @@ def tensor_to_tuple(value:torch.Tensor) -> tuple[float,float]:
 
     return (float(flattened[0]),float(flattened[1]))
 
+def tensor_to_float(value: torch.Tensor) -> float:
+    """Convert a one-value PyTorch tensor into a Python float."""
+
+    if value.numel() != 1:
+        raise ValueError(
+            "Expected a tensor containing exactly one value. "
+            f"Received shape {tuple(value.shape)}."
+        )
+
+    return float(value.detach().cpu().item())
+
 def permittivity_at_wavelength(
     value: torch.Tensor,
     wavelength_index: int
@@ -173,16 +184,8 @@ class PreparedS4Model:
                 # regions made from different material will be inserted 
                 # in next implementation
 
-                material_name = f"layer_{layer_index}_material"
                 solid_material_name = f"layer_{layer_index}_solid"
-
-                simulation.SetMaterial(
-                    Name=material_name,
-                    Epsilon=permittivity_at_wavelength(
-                        layer.medium_void.eps,
-                        wavelength_index
-                    )
-                )
+                void_material_name = f"layer_{layer_index}_void"
 
                 simulation.SetMaterial(
                     Name=solid_material_name,
@@ -191,6 +194,16 @@ class PreparedS4Model:
                         wavelength_index
                     )
                 )
+
+                simulation.SetMaterial(
+                    Name=void_material_name,
+                    Epsilon = permittivity_at_wavelength(
+                        layer.medium_void.eps,
+                        wavelength_index
+                    )
+                )
+
+
             else:
                 raise TypeError(
                     "Unsupported MetaRCWA layer type:"
@@ -200,7 +213,7 @@ class PreparedS4Model:
             # Add the layers to the stack one by one
             simulation.AddLayer(
                 Name=layer_name,
-                Thickness=tensor_to_tuple(layer.thickness),
+                Thickness=tensor_to_float(layer.thickness),
                 Material=material_name
             )
         
@@ -217,7 +230,7 @@ class PreparedS4Model:
         simulation.AddLayer(
             Name="transmission",
             Thickness=0.0,
-            Materials="transmission"
+            Material="transmission"
         )
 
         return cls(
