@@ -109,7 +109,9 @@ Photonic bench:
 
 ### Goal: Complete the FMMax and S4 routes and beging shared studies
 
-### Tasks:
+<details>
+
+<summary> Tasks: </summary>
 
 - Complete FMMax layer translation and simulation
 - Implement the S4 config adapter and simulation
@@ -124,13 +126,65 @@ Photonic bench:
 - Save configuration and solver-version data with result
 - Add a YAML-loading test or some other basic configuration/backend test 
 
+</details>
+
+### Completed:
+
+- Completed the initial FMMax configuration adapter:
+    - converted common precision settings into JAX dtypes
+    - translated the truncation rule into the FMMax representation
+    - converted the common harmonic limits into an approximate FMMax basis size
+    - stored the initial FMMax formulation
+
+- Implemented the main MetaRCWA-to-FMMax translation:
+    - resolved the MetaRCWA model into a `ModelSpec`
+    - converted PyTorch tensors into JAX arrays
+    - translated the lattice vectors
+    - handled wavelength and angle batch dimensions
+    - generated the FMMax Fourier expansion
+    - translated incidence, transmission, homogeneous-layer and patterned-layer permittivities
+    - translated layer thicknesses
+    - solved the electromagnetic modes of each layer
+    - constructed the scattering matrix
+    - Implemented an initial `run_fmmax()` simulation route returning `Rs`, `Rp`, `Ts` and `Tp`.
+
+- Added FMMax tests covering:
+    - configuration translation
+    - model preparation
+    - array and batch shapes
+    - lattice and Fourier-basis construction
+    - layer and scattering-matrix construction
+    - finite and non-negative simulation results
+
+- Investigated the compatibility of the S4 Python 3.10 extension with the project’s Python 3.12 environment.
+- Built a Python 3.12-compatible S4 extension from the existing S4 core in a separate build directory.
+
+- Began the MetaRCWA-to-S4 translation:
+
+  - created the S4 lattice and Fourier basis
+  - added the incidence and transmission media
+  - added homogeneous finite layers
+  - added material definitions for patterned layers
+
+- Added initial S4 tests covering:
+
+  - configuration translation
+  - lattice construction
+  - requested and actual basis information
+  - material permittivities
+  - basic stack construction
+
 ## Week 3 09/08/2026 - 13/08/2026
 
 ### Goal: Add another geometry
 
 ### Tasks:
-- YAML to S4 and FMMax results pipelines repeated for a new geometry
-- Conduct the studies for the new geometry
+- Add the analytical square-particle region to the patterned S4 layer.
+- Add the S4 wavelength, incidence angle and polarization settings.
+- Extract S4 reflection and transmission results.
+- Implement YAML loading for the revised framework.
+- Implement the terminal-facing runner.
+- Implement shared studies, CSV output and solver metadata.
 
 ## Week 4: 16/08/2026 - 20/08/2026
 
