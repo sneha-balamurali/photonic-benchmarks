@@ -203,6 +203,9 @@ class PreparedS4Model:
                     )
                 )
 
+                # Fill the complete patterned layer with the background material
+                # The solid geometry will be inserted after
+                material_name = void_material_name
 
             else:
                 raise TypeError(
