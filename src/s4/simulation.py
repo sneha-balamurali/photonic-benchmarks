@@ -90,6 +90,12 @@ class PreparedS4Model:
     simulation:
         S4 simulation object configured with the lattice, requested 
         basis size and lattice truncation rule
+    wavelength_index:
+        Position of the selected wavelength in the MetaRCWA wavelength sweep.
+        Index zero selects the first wavelength.
+    wavelength:
+        Selected wavelength as an Python float. Uses the same length unit as
+        the model geometry.
     """
 
     config: S4Config
@@ -100,6 +106,7 @@ class PreparedS4Model:
         tuple[float,float]
     ]
     wavelength_index: int
+    wavelength: float
     simulation: Any
 
     @classmethod
@@ -130,6 +137,35 @@ class PreparedS4Model:
         model_spec = model.spec(nx=cfg.nx,
                                 ny=cfg.ny)
 
+        # MetaRCWA stores all the requested wavelengths in a PyTorch tensor
+        # e.g. tensor([500,600])
+        # One S4 simulation object uses one frequency at at time, so select
+        # the wavelength indicated by wavelength_index.
+
+        wavelengths = (model_spec.wavelength
+                       .detach()
+                       .cpu()
+                       .reshape(-1)
+                       )
+
+        number_of_wavelengths = wavelengths.numel()
+        
+        # Check the index and give a clear explanation if 
+        # there is an indexing error
+        if not 0<= wavelength_index < number_of_wavelengths:
+            raise IndexError(
+                "wavelength_index is outside the model's wavelength array. "
+                f"Received {wavelength_index}, but model contains "
+                f"{number_of_wavelengths} wavelength values."
+            )
+
+        # item() extracts one number from a one value PyTorch tensor
+        # float() converts that number into a float
+        # which is what the S4 Python interface expects.
+        wavelength = float(
+            wavelengths[wavelength_index].item()
+        )
+
         # MetaRCWA stores lattice vectors as PyTorch tensors
         # S4 expects something of the form:
         # ((a1_x,a1_y), (a2_x,a2_y))
@@ -142,6 +178,15 @@ class PreparedS4Model:
         simulation = S4.New(
             Lattice=lattice_vectors,
             NumBasis=cfg.requested_num_basis
+        )
+
+        # S4 expects frequency = 1 / wavelength, rather than 
+        # wavelength itself or angular frequency.
+        # All lengths must use one consistent unit. In this model,
+        # both geometry and wavelength use nanometres, so the
+        # numerical frequency is expressed in inverse nanometres.
+        simulation.SetFrequency(
+            1.0 / wavelength
         )
 
         simulation.SetOptions(LatticeTruncation= 
@@ -269,5 +314,95 @@ class PreparedS4Model:
             lattice_vectors=lattice_vectors,
             simulation=simulation,
             wavelength_index=wavelength_index,
-            model=model
+            model=model,
+            wavelength=wavelength
         )
+
+@dataclass
+class S4DiffractionResult:
+    """Diffraction order powers returned by S4
+    
+    S4 is run twice at every wavelength and angle:
+    - once with an s-polarised incident wave
+    - once with a p-polarised incident wave
+    
+    Each output tensor stores the power in every retained
+    diffraction order. The last tensor axis corresponds to
+    these orders.
+
+    Attributes
+    ----------
+    orders:
+        Retained S4 diffraction-order pairs (m,n). If 
+        orders[3] == (1,-1), then index 3 on every power tensor
+        contains the power in diffraction order (1,-1).
+    reflection_s_incident:
+        Reflected power per order for an s-polarised incident 
+        wave. Shape (Nw, Ntheta, Nphi, Norders)
+    reflection_p_incident:
+        Reflected power per order for a p-polarised incident 
+        wave. Shape (Nw, Ntheta, Nphi, Norders)
+    transmission_s_incident:
+        Transmitted power per order for a s-polarised incident
+        wave. Shape (Nw, Ntheta, Nphi, Norders)
+    transmission_p_incident:
+        Transmitted power per order for a p-polarised incident
+        wave. Shape (Nw, Ntheta, Nphi, Norders)
+
+    Notes
+    -----
+    S4's GetPowerFluxOrder() reports total power in each diffraction
+    order. It doesn't seperate the outgoing order into s and p 
+    polarised components.
+    """
+
+    orders: tuple[tuple[int,int],...]
+
+    reflection_s_incident: torch.Tensor
+    reflection_p_incident: torch.Tensor
+    transmission_s_incident: torch.Tensor
+    transmission_p_incident: torch.Tensor
+
+    def powers_for_order(self,
+                         order: tuple[int,int]
+                    ) -> tuple[torch.Tensor,
+                               torch.Tensor,
+                               torch.Tensor,
+                               torch.Tensor]:
+        """Return s and p incident powers for one diffraction order.
+
+        Paramters
+        ---------
+        order: 
+            Diffraction-order pair (m,n) such as (0,0),
+            (1,0), (1,-1)
+        
+        Returns
+        -------
+        Rs, Rp, Ts, Tp:
+            Power tensors with shape (Nw, Ntheta, Nphi).
+            Where s and p in the subscript indicate the polarisation
+            of the incident wave. S4's per order flux doesn't seperate
+            the output wave into co and cross polarised parts. 
+        """
+
+        # orders is a tuple such as:
+        # ((0,0), (0,-1), (-1,0),...)
+        # Find the integer position of the requested pair
+        try:
+            order_index = self.orders.index(order)
+        except ValueError as error:
+            raise ValueError(
+                f"Diffraction order {order!r} was not retained by S4. "
+                f"Retained orders: {self.orders!r}"
+            ) from error
+
+        # Each complete power tensor has the shape:
+        # (Nw, Ntheta, Nphi, Norders)
+        # order_index selects one diffraction order from the final axis
+        Rs=self.reflection_s_incident[...,order_index]
+        Rp=self.reflection_p_incident[...,order_index]
+        Ts=self.transmission_s_incident[...,order_index]
+        Tp=self.transmission_p_incident[...,order_index]
+
+        return Rs, Rp, Ts, Tp

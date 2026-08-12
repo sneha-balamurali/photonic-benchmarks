@@ -30,6 +30,13 @@ def test_s4_preparation() -> None:
         config=config
     )
 
+    # create_small_model() currently contains one wavelength: 500 nm.
+    assert prepared.wavelength_index == 0
+    assert math.isclose(
+        prepared.wavelength,
+        500.0,
+    )
+
     # The square-particle mode has a square lattice with 
     # period 180nm
     assert prepared.lattice_vectors == ((180.0,0.0),
