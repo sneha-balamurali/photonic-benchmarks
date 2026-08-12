@@ -50,7 +50,7 @@ def metashape_from_layer(layer: Layer) -> Shape:
     
     #getattr() lets us provide an error if this is a custom
     # shape function that doesn't have MetRCWA's _dep attribute
-    dependencies = getattr(layer.shape_fn, "_deps", ())
+    dependencies = getattr(layer.shape_fn, "_deps")
 
     if len(dependencies) !=1:
         raise TypeError(
@@ -66,8 +66,8 @@ def metashape_from_layer(layer: Layer) -> Shape:
 
     if not isinstance(shape,Shape):
         raise TypeError(
-            "The registered dependency is not a MetaShapes Shape"
-            f"Recieved {type(shape).__name__!r}."
+            "The registered dependency is not a MetaShapes Shape. "
+            f"Receieved {type(shape).__name__!r}."
         )
     
     return shape
@@ -78,6 +78,10 @@ def add_rectangle(
     layer_name: str,
     material_name: str,
     shape: Rectangle,
+    lattice_vectors: tuple[
+        tuple[float,float],
+        tuple[float,float]
+    ]
 ) -> None:
     """Translate one MetaShapes Rectangle into an S4 region.
 
@@ -85,7 +89,7 @@ def add_rectangle(
     in `size`. S4 instead expects `Halfwifth`, so both dimensions
     have to be divided by 2.
 
-    MetaShapes supports rounded rectangle corders but S4's
+    MetaShapes supports rounded rectangle corners but S4's
     `SetRegionRectangle()` doesn't. A nonzero corner radius is
     rejected so the adapter can't silently change the intended
     geometry. 
@@ -117,13 +121,32 @@ def add_rectangle(
             "S4 rectangles do not support rounded corners."
         )
     
-    # MetaShapes coordinates are relative to the unit cell origin
-    # S4 coordinates are relative to the unit-cell center
+    # MetaShapes places the original unit-cell corner at (0,0)
+    # S4 places the unit-cell centre at (0,0)
+    # The Cartesian centre of a 2D lattice cell 
+    # is (a1 + a2) / 2
+
+    a1,a2 = lattice_vectors
+
+    metashapes_cell_center = (
+        # x componenet
+        (a1[0] + a2[0]) /2,
+        # y component
+        (a1[1] + a2[1]) / 2
+    )
+
+    # Shift the MetaShapes centre from its corner-based coordinates
+    # into S4's centre based coordintes
+    s4_center = (
+        center[0] - metashapes_cell_center[0],
+        center[1] - metashapes_cell_center[1]
+    )
+
     halfwidths = (
         size[0] / 2, 
         size[1] / 2,
     )
-
+    
     simulation.SetRegionRectangle(
         Layer=layer_name,
         Material=material_name,
@@ -146,29 +169,33 @@ def add_shape(
     layer_name: str,
     material_name: str,
     shape: Shape,
+    lattice_vectors: tuple[
+        tuple[float, float],
+        tuple[float,float]
+    ]
 ) -> None:
     """Add one supported MetaShapes geometry to an S4 layer.
 
     The shape's exact Python class is looked up in _SHAPE_ADAPTERS.
     Unsupported classes are rejected instead of being guessed.
     """
-    # For a rectange, this lookup would return add_rectangle
+    # For a rectangle, this lookup would return add_rectangle
     adapter = _SHAPE_ADAPTERS.get(type(shape))
 
-    # Dictionary.get() returns None when the key is not present
     if adapter is None:
         shape_name = type(shape).__name__
 
         raise NotImplementedError(
-            "The S4 backend does not yet support the MetaShape"
-            "Currently only Rectangle is supported."
+            "The S4 backend does not yet support the MetaShape shape "
+            f"{shape_name!r}. Currently only Rectangle is supported."
         )
 
-    # Call the translation function selected by the dictionary.
-    # For the current square model, this calls add_rectangle(...)
+    # Forward all the information needed by the selected
+    # geometry adapter
     adapter(
         simulation,
         layer_name=layer_name,
         material_name=material_name,
-        shape=shape
+        shape=shape,
+        lattice_vectors=lattice_vectors
     )

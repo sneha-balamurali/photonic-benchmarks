@@ -7,6 +7,7 @@ from metarcwa import Model
 
 from src.config import Config
 from src.s4.config import S4Config
+from src.s4.geometry import add_shape, metashape_from_layer
 
 from metarcwa.model.layer import HomogeneousLayer, PatternedLayer
 
@@ -165,10 +166,15 @@ class PreparedS4Model:
         )
 
         # Add the finite layers in incidence to transmission order
+        # MetaRCWA model_spec defines layer 0 from the first finite layer
+        # The semi-infinite incidence and transmission layers are defined
+        # seperately 
         for layer_index, layer in enumerate(model_spec.layers):
             layer_name = f"layer_{layer_index}"
 
             if isinstance(layer, HomogeneousLayer):
+                # A homogeneous layer contains only one material 
+                # and doesn't require an analytical geometry region
                 material_name = f"layer_{layer_index}_material"
 
                 simulation.SetMaterial(
@@ -177,6 +183,12 @@ class PreparedS4Model:
                         layer.medium.eps,
                         wavelength_index
                     )
+                )
+
+                simulation.AddLayer(
+                    Name=layer_name,
+                    Thickness=tensor_to_float(layer.thickness),
+                    Material=material_name
                 )
             elif isinstance(layer, PatternedLayer):
                 # S4 creates a patterned layer by first filling the
@@ -203,23 +215,38 @@ class PreparedS4Model:
                     )
                 )
 
-                # Fill the complete patterned layer with the background material
-                # The solid geometry will be inserted after
-                material_name = void_material_name
+                # Begin by filling the layer with the 
+                # void/background material
+                simulation.AddLayer(
+                    Name=layer_name,
+                    Thickness=tensor_to_float(layer.thickness),
+                    Material=void_material_name
+                )
+
+                # The resolved layer contains a raster mask, 
+                # while the unresolved layer contains the original
+                # MetaShapes geometry.
+                original_layer = model.stack.layers[layer_index]
+
+                shape = metashape_from_layer(original_layer)
+
+                # Insert the solid analytical geometry into the background
+                # layer. The mapping geometry.py selects add_rectangle()
+                # for the current Rectangle. 
+                add_shape(
+                    simulation,
+                    layer_name=layer_name,
+                    material_name=solid_material_name,
+                    shape=shape,
+                    lattice_vectors=lattice_vectors
+                )
 
             else:
                 raise TypeError(
                     "Unsupported MetaRCWA layer type:"
                     f"{type(layer).__name__}"
                 )
-            
-            # Add the layers to the stack one by one
-            simulation.AddLayer(
-                Name=layer_name,
-                Thickness=tensor_to_float(layer.thickness),
-                Material=material_name
-            )
-        
+
         # Set the final semi-infinite transmission medium as the final
         # zero thickness layer at the end of the stack
         simulation.SetMaterial(

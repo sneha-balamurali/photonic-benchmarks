@@ -73,12 +73,48 @@ def test_s4_preparation() -> None:
     # Check the material stack along z
     # z < 0: incidence medium
     # 0 < z < 20: homogeneous planarization layer
-    # 20 < z < 100: patterned layer background before any geometry is added
+    # 20 < z < 100: patterned layer containing a solid square
+    # within the void/background material
     # z > 100: transmission medium
     # Argument gives the coordinate at which to call the dielectric constant
     assert prepared.simulation.GetEpsilon(0,0,-1) == 1.0 + 0.0j
     assert prepared.simulation.GetEpsilon(0,0,10) == 2.25 + 0.0j
-    assert prepared.simulation.GetEpsilon(0,0,50) == 2.25 + 0.0j
+
+    # (0,0,50) would be inside the patterned layer because at the 
+    # S4 unit cell centre, the point is inside the translated
+    # solid square
+    calculated_solid_eps = prepared.simulation.GetEpsilon(0,0,50)
+    calculated_void_eps = prepared.simulation.GetEpsilon(60,60,50)
+    expected_solid_eps = complex(prepared.model_spec.layers[1]
+                                .medium_solid.eps[prepared.wavelength_index]
+                                .detach()
+                                .cpu()
+                                .item())
+    expected_void_eps = complex(prepared.model_spec.layers[1]
+                                .medium_void.eps[prepared.wavelength_index]
+                                .detach()
+                                .cpu()
+                                .item()
+                                )
+
+    # Because GetEpsilon() uses a finite Fourier reconstruction, 
+    # compare which intended material each point is closer to than
+    # expecting exact equality.
+
+    assert abs(calculated_solid_eps - expected_solid_eps) < abs(
+        calculated_solid_eps - expected_void_eps
+    )
+
+    assert abs(calculated_void_eps - expected_void_eps) < abs(
+        calculated_void_eps - expected_solid_eps
+    )
+
+    print("Difference between the permittivty that S4's GetEpsilon"
+            "reconstructrs using the finite retained Fourier basis and"
+            "the given permittivty for the solid in the patterned" 
+            f"layer is {calculated_solid_eps - expected_solid_eps}")
+
+
 
     transmission_eps = prepared.simulation.GetEpsilon(0,0,101)
 
