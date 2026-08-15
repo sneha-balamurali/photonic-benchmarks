@@ -1,9 +1,16 @@
 import math
 
 from src.s4.config import S4Config
-from src.s4.simulation import PreparedS4Model
 from test.test_config import create_example_config
 from test.test_metarcwa import create_small_config, create_small_model
+from src.s4.simulation import (
+    PreparedS4Model,
+    solve_s4_total_power,
+    solve_s4_power_by_order,
+    run_s4_diffraction,
+    run_s4
+)
+import torch
 
 
 def test_s4_config() -> None:
@@ -136,7 +143,216 @@ def test_s4_preparation() -> None:
 
     assert transmission_eps == expected_transmission_eps
 
+def test_s4_total_power() -> None:
+    """Check one normal-incidence, s-polarized S4 calculation."""
+
+    model = create_small_model()
+    config = create_small_config()
+
+    prepared = PreparedS4Model.from_model(
+        model=model,
+        config=config,
+        wavelength_index=0,
+    )
+
+    reflection, transmission = solve_s4_total_power(
+        prepared=prepared,
+        theta_rad=0.0,
+        phi_rad=0.0,
+        polarization="s",
+    )
+
+    print("S4 total s reflection:", reflection)
+    print("S4 total s transmission:", transmission)
+
+    assert math.isfinite(reflection)
+    assert math.isfinite(transmission)
+
+    assert reflection >= 0
+    assert transmission >= 0
+
+    # Run the same physical structure with a purely p-polarized
+    # incident plane wave.
+    reflection_p, transmission_p = solve_s4_total_power(
+        prepared=prepared,
+        theta_rad=0.0,
+        phi_rad=0.0,
+        polarization="p",
+    )
+
+    print("S4 total p reflection:", reflection_p)
+    print("S4 total p transmission:", transmission_p)
+
+    assert math.isfinite(reflection_p)
+    assert math.isfinite(transmission_p)
+
+    assert reflection_p >= 0
+    assert transmission_p >= 0
+
+    # A centred square on a square lattice is symmetric between the x
+    # and y directions at normal incidence. The s and p results should
+    # therefore agree within ordinary floating-point precision.
+    assert math.isclose(
+        reflection,
+        reflection_p,
+        rel_tol=1e-6,
+    )
+
+    assert math.isclose(
+        transmission,
+        transmission_p,
+        rel_tol=1e-6,
+    )
+def test_s4_power_by_order() -> None:
+    """Check that S4 separates power into retained diffraction orders."""
+
+    model = create_small_model()
+    config = create_small_config()
+
+    prepared = PreparedS4Model.from_model(
+        model=model,
+        config=config,
+        wavelength_index=0,
+    )
+
+    orders, reflection_by_order, transmission_by_order = (
+        solve_s4_power_by_order(
+            prepared=prepared,
+            theta_rad=0.0,
+            phi_rad=0.0,
+            polarization="s",
+        )
+    )
+
+    print("S4 diffraction orders:", orders)
+    print("S4 reflection by order:", reflection_by_order)
+    print("S4 transmission by order:", transmission_by_order)
+
+    # There must be one reflected and transmitted power for every
+    # retained S4 diffraction order.
+    assert reflection_by_order.shape == (len(orders),)
+    assert transmission_by_order.shape == (len(orders),)
+
+    assert torch.isfinite(reflection_by_order).all()
+    assert torch.isfinite(transmission_by_order).all()
+
+    # Confirm that the physical zeroth order exists.
+    zeroth_order_index = orders.index((0, 0))
+
+    zeroth_reflection = reflection_by_order[zeroth_order_index]
+    zeroth_transmission = transmission_by_order[zeroth_order_index]
+
+    print("S4 zeroth-order reflection:", zeroth_reflection)
+    print("S4 zeroth-order transmission:", zeroth_transmission)
+
+    # Compare the sum of all individual orders with GetPowerFlux(),
+    # which reports the total over all orders.
+    total_reflection, total_transmission = solve_s4_total_power(
+        prepared=prepared,
+        theta_rad=0.0,
+        phi_rad=0.0,
+        polarization="s",
+    )
+
+    assert math.isclose(
+        float(reflection_by_order.sum()),
+        total_reflection,
+        rel_tol=1e-9,
+        abs_tol=1e-12,
+    )
+
+    assert math.isclose(
+        float(transmission_by_order.sum()),
+        total_transmission,
+        rel_tol=1e-9,
+        abs_tol=1e-12,
+    )
+
+def test_s4_diffraction_sweep() -> None:
+    """Check that S4 creates the complete result tensor."""
+
+    model = create_small_model()
+    config = create_small_config()
+
+    result = run_s4_diffraction(
+        model=model,
+        config=config,
+    )
+
+    number_of_orders = len(result.orders)
+
+    # The small model has one wavelength, one theta and one phi.
+    expected_shape = (
+        1,
+        1,
+        1,
+        number_of_orders,
+    )
+
+    assert result.reflection_s_incident.shape == expected_shape
+    assert result.reflection_p_incident.shape == expected_shape
+    assert result.transmission_s_incident.shape == expected_shape
+    assert result.transmission_p_incident.shape == expected_shape
+
+    assert torch.isfinite(
+        result.reflection_s_incident
+    ).all()
+
+    assert torch.isfinite(
+        result.reflection_p_incident
+    ).all()
+
+    assert torch.isfinite(
+        result.transmission_s_incident
+    ).all()
+
+    assert torch.isfinite(
+        result.transmission_p_incident
+    ).all()
+
+    Rs, Rp, Ts, Tp = result.powers_for_order(
+        (0, 0)
+    )
+
+    print("S4 zeroth-order Rs:", Rs)
+    print("S4 zeroth-order Rp:", Rp)
+    print("S4 zeroth-order Ts:", Ts)
+    print("S4 zeroth-order Tp:", Tp)
+
+    assert Rs.shape == (1, 1, 1)
+    assert Rp.shape == (1, 1, 1)
+    assert Ts.shape == (1, 1, 1)
+    assert Tp.shape == (1, 1, 1)    
+
+def test_run_s4() -> None:
+    """Check that the public S4 route returns Rs, Rp, Ts and Tp."""
+
+    model = create_small_model()
+    config = create_small_config()
+
+    Rs, Rp, Ts, Tp = run_s4(
+        model=model,
+        config=config,
+    )
+
+    results = {
+        "S4 Rs": Rs,
+        "S4 Rp": Rp,
+        "S4 Ts": Ts,
+        "S4 Tp": Tp,
+    }
+
+    print(results)
+
+    for value in results.values():
+        assert value.shape == (1, 1, 1)
+        assert torch.isfinite(value).all()
+
 if __name__ == "__main__":
     test_s4_config()
     test_s4_preparation()
+    test_s4_total_power()
+    test_s4_power_by_order()
+    test_s4_diffraction_sweep()
+    test_run_s4()
     print("S4 adapter checks passed.")
