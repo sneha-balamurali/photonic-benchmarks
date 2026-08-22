@@ -1,0 +1,36 @@
+model:
+  period_nm: 180.0
+  particle_side_nm: 60.0
+
+  planarization_thickness_nm: 20.0
+  patterned_layer_thickness_nm: 80.0
+
+  wavelength_nm:500.0
+  theta_deg: 0.0
+  phi_deg: 0.0
+
+  incidence_epsilon:
+    real: 1.0
+    imag: 0.0
+
+  planarization_epsilon:
+    real: 2.25
+    imag: 0.0
+  
+  background_epsilon:
+    real: 2.25
+    imag: 0.0
+  
+  particle_epsilon:
+    real: -7.632
+    imag: 0.731
+  
+  transmission_epsilon:
+    real: -7.632
+    imag: 0.731
+  
+  s4:
+    num_basis: 25
+    lattice_truncaton: Circular
+
+    

@@ -11,3 +11,8 @@ dependencies = [
 
 [tool.uv.sources]
 metarcwa = { git = "https://github.com/RodionovSA/metarcwa.git" }
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+]
