@@ -5,7 +5,7 @@ model:
   planarization_thickness_nm: 20.0
   patterned_layer_thickness_nm: 80.0
 
-  wavelength_nm:500.0
+  wavelength_nm: 500.0
   theta_deg: 0.0
   phi_deg: 0.0
 
@@ -29,8 +29,16 @@ model:
     real: -7.632
     imag: 0.731
   
-  s4:
-    num_basis: 25
-    lattice_truncaton: Circular
+s4:
+  num_basis: 25
+  lattice_truncation: Circular
 
+fmmax:
+  nx: 32
+  ny: 32
+  approximate_num_terms: 25
+  truncation: Circular
+  formulation: FFT
+
+  
     

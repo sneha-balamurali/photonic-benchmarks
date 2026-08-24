@@ -225,7 +225,7 @@ class PreparedFMMaxModel:
         # FMMax requires uniform media to have final spatial dimension
         # of (1,1)
         # incidence_eps.shape = (Nw,1,1,1,1)
-        # transmission_eps.shape - (Nw,1,1,1,1)
+        # transmission_eps.shape = (Nw,1,1,1,1)
 
         incidence_eps = prepare_uniform_permittivity(
             model_spec.incidence.eps, complex_dtype = cfg.complex_dtype
