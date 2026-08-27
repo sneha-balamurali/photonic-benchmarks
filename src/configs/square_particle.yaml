@@ -22,22 +22,24 @@ model:
     imag: 0.0
   
   particle_epsilon:
-    real: -7.632
-    imag: 0.731
+    real: 4.0
+    imag: 0.0
   
   transmission_epsilon:
-    real: -7.632
-    imag: 0.731
+    real: 4.0
+    imag: 0.0
   
 s4:
   num_basis: 25
-  lattice_truncation: Circular
+  lattice_truncation: Parallelogramic
+  DiscretizedEpsilon: True
+  DiscretizationResolution: 96
 
 fmmax:
-  nx: 32
-  ny: 32
+  nx: 96
+  ny: 96
   approximate_num_terms: 25
-  truncation: Circular
+  truncation: Parallelogramic
   formulation: FFT
 
   

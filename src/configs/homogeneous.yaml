@@ -1,0 +1,27 @@
+model:
+  wavelength_nm: 500.0
+  theta_deg: 0.0
+  phi_deg: 0.0
+
+  incidence_epsilon:
+    real: 1.0
+    imag: 0.0
+
+  layer_thickness_nm: 100.0
+
+  layer_epsilon:
+    real: 2.25
+    imag: 0.0
+
+  transmission_epsilon:
+    real: 1.0
+    imag: 0.0
+
+s4:
+  num_basis: 1
+  lattice_truncation: Circular
+
+fmmax:
+  approximate_num_terms: 1
+  truncation: Circular
+  formulation: FFT
