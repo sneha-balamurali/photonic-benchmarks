@@ -28,10 +28,12 @@ model:
   transmission_epsilon:
     real: 4.0
     imag: 0.0
+
+  square_corner_radius: 0.0
   
 s4:
   num_basis: 25
-  lattice_truncation: Parallelogramic
+  lattice_truncation: Circular
   DiscretizedEpsilon: True
   DiscretizationResolution: 96
 
@@ -39,8 +41,14 @@ fmmax:
   nx: 96
   ny: 96
   approximate_num_terms: 25
-  truncation: Parallelogramic
+  truncation: Circular
   formulation: FFT
 
-  
-    
+metarcwa:
+  dtype: float64
+  device: cuda
+  nx: 96
+  ny: 96
+  m: 2
+  n: 2
+  truncation: circular
