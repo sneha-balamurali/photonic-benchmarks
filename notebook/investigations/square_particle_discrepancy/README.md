@@ -28,6 +28,8 @@ lower and appears to converge toward a different value.
 
 ## Investigation plan
 
+Following the project’s current scope, this discrepancy is documented here and deferred while the framework is generalised and factorisation methods are compared.
+
 | Experiment | Question | Status | Conclusion |
 |---|---|---|---|
 | Circular basis comparison | Are the retained order sets identical? | In progress | — |
