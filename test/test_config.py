@@ -1,7 +1,7 @@
 import torch
 
 from src.config import Config
-from src.metarcwa.config import MetaRCWAConfig
+from metarcwa.config_prev import MetaRCWAConfig
 
 
 def create_example_config() -> Config:

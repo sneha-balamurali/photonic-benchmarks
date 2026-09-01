@@ -9,9 +9,9 @@ from dispertorch import ConstantEps
 
 from examples.metarcwa.square_particle import build_model
 from src.config import Config
-from src.fmmax.simulation import run_fmmax
-from src.metarcwa.simulation import run_metarcwa
-from src.s4.simulation import run_s4
+from fmmax.simulation_prev import run_fmmax
+from metarcwa.simulation_prev import run_metarcwa
+from s4.simulation_prev import run_s4
 
 def create_config() -> Config:
     """Creare a simple numerifal config for all three solvers."""

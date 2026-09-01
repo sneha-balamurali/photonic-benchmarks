@@ -2,7 +2,7 @@ import torch
 from typing import Tuple
 
 from src.config import Config
-from src.metarcwa.config import MetaRCWAConfig
+from metarcwa.config_prev import MetaRCWAConfig
 from metarcwa import Model, Solver, Factorization, Observables
 
 def run_metarcwa(model: Model, config: Config) -> Tuple[torch.Tensor, torch.Tensor,

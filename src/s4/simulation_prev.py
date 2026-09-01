@@ -7,8 +7,8 @@ import torch
 from metarcwa import Model
 
 from src.config import Config
-from src.s4.config import S4Config
-from src.s4.geometry import add_shape, metashape_from_layer
+from src.s4.config_prev import S4Config
+from s4.geometry_prev import add_shape, metashape_from_layer
 
 from metarcwa.model.layer import HomogeneousLayer, PatternedLayer
 

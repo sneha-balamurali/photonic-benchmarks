@@ -3,7 +3,7 @@ from dispertorch import ConstantEps
 
 from examples.metarcwa.square_particle import build_model
 from src.config import Config
-from src.metarcwa.simulation import run_metarcwa
+from metarcwa.simulation_prev import run_metarcwa
 
 
 def create_small_model():

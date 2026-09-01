@@ -1,0 +1,83 @@
+model:
+  # Physical lengths are in nanometres.
+  # Angles in this YAML are in degrees.
+
+  lattice:
+    a1_nm: [180.0, 0.0]
+    a2_nm: [0.0, 240.0]
+
+  source:
+    wavelength_nm: 500.0
+    theta_deg: 0.0
+    phi_deg: 0.0
+
+  materials:
+    air:
+      epsilon:
+        real: 1.0
+        imag: 0.0
+    
+    dielectric:
+      epsilon:
+        real: 2.25
+        imag: 0.0
+    
+    particle:
+      epsilon:
+        real: 4.0
+        imag: 0.0
+    
+    substrate:
+      epsilon:
+        real: 4.0
+        imag: 0.0
+  
+  incidence: air
+  transmission: substrate
+  
+  layers:
+    - type: homogeneous
+      thickness_nm: 20.0
+      material: dielectric
+    
+    - type: patterned
+      thickness_nm: 80.0
+      solid: particle
+      void: dielectric
+
+      shape:
+        type: rectangle
+        center_nm: [90.0, 120.0]
+        size: [60.0, 80.0]
+        angle: 0.0
+        corner_radius_nm: 0.0
+
+        #type: Ellipse
+        #center_nm: [90.0, 120.0]
+        #axes: [70.0, 40.0]
+        #angle: 20.0
+
+fmmax:
+  nx: 96
+  ny: 96
+  approximate_num_terms: 25
+  truncation: circular
+  formulation: fft
+
+
+s4:
+  num_basis: 25
+  lattice_truncation: Circular
+  DiscretizedEpsilon: true
+  DiscretizationResolution: 96
+  PolarizationDecomposition: false
+
+
+metarcwa:
+  dtype: float64
+  device: cpu
+  nx: 96
+  ny: 96
+  m: 2
+  n: 2
+  truncation: circular

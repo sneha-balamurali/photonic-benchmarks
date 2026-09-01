@@ -1,97 +1,67 @@
 from dataclasses import dataclass
-
-import jax.numpy as jnp
 from fmmax import basis, fmm
 
-from src.config import Config
-
-_DTYPE_MAP = {
-    "float32": (jnp.float32,jnp.complex64),
-    "float64": (jnp.float64,jnp.complex128),
-}
-
-# The common Config uses strings because strings are easy to store in YAML.
-# FMMax expects members of its Truncation enum instead. 
-_TRUNCATION_MAP = {
+TRUNCATION_MAP = {
     "circular": basis.Truncation.CIRCULAR,
-    "rectangular": basis.Truncation.PARALLELOGRAMIC,
+    "parallelogramic": basis.Truncation.PARALLELOGRAMIC,
+    "rectangular": basis.Truncation.PARALLELOGRAMIC
 }
 
+FORMULATION_MAP = {
+    "fft": fmm.Formulation.FFT,
+    "jones": fmm.Formulation.JONES,
+    "jones_direct": fmm.Formulation.JONES_DIRECT,
+    "normal": fmm.Formulation.NORMAL,
+    "pol": fmm.Formulation.POL
+}
 
 @dataclass
 class FMMaxConfig:
-    """Numerical settings translated into FMMax-compatible values.
-
-    Unlike MetaRCWA, FMMax does not provide one Config class containing all
-    its numerical settings. Its functions receive values such as basis size,
-    truncation and formulation separately. This dataclass gathers those
-    values into one object for the FMMax benchmark backend.
+    """Numerical settings used directly by FMMax.
 
     Attributes
-    ----------
-    dtype:
-        JAX floating-point type used when creating FMMax arrays.
-    device:
-        Requested execution device, stored for use by ``run_fmmax()``.
+    ---------
     nx, ny:
-        Grid sizes used by ``model.spec(nx, ny)`` to rasterise patterned
-        layers. These are not the number of Fourier terms.
+        Number of real-space samples used to represent the unit cell.
     approximate_num_terms:
-        Target number of Fourier terms requested from FMMax. FMMax may use a
-        slightly different actual count to keep its expansion symmetric.
+        Approximate number of Fourier orders requested from FMMax.
     truncation:
-        Shape used to select Fourier terms in reciprocal space.
+        Rule used to select Fourier orders.
     formulation:
-        FMMax method used for patterned layers. FFT is our initial baseline.
+        Fourier-modal formulation used for patterned layers.
     """
-    
-    real_dtype: type
-    complex_dtype: type
-    device: str
+
     nx: int
     ny: int
     approximate_num_terms: int
     truncation: basis.Truncation
-    formulation: fmm.Formulation = fmm.Formulation.FFT
+    formulation: fmm.Formulation
+
+    def __post_init__(self) -> None:
+        """Check that the numerical settings are valid."""
+
+        if self.nx <= 0 or self.ny <=0:
+            raise ValueError(
+                "nx and ny must be positive"
+            )
+        if self.approximate_num_terms <=0:
+            raise ValueError(
+                "approximate_num_terms must be positive"
+            )
 
     @classmethod
-    def from_config(cls, config: Config) -> "FMMaxConfig":
-        """Translate the common Config into FMMax-specific values.
+    def from_dict(cls, data:dict) -> "FMMaxConfig":
+        """Create FMMax settings from YAML-derived dictionary data"""
 
-        The common Config contains strings and MetaRCWA-style harmonic
-        limits m and n. This method converts them into the values expected
-        by FMMax.
-        """
+        # Work on a copy so the original YAML dictionary is not changed
+        data = dict(data)
 
-        # Check strings here so mistakes produce a clear error before FMMax
-        # starts a more complicated numerical operation.
-        if config.dtype not in _DTYPE_MAP:
-            raise ValueError(
-                f"Unsupported dtype {config.dtype!r}. "
-                f"Choose one of: {', '.join(_DTYPE_MAP)}"
-            )
+        # strip() by default removes any whitespace at the beginning and end
+        # lower() converts all letters to lowercase
+        truncation_name = str(data["truncation"]).strip().lower()
+        formulation_name = str(data["formulation"]).strip().lower()
 
-        if config.truncation not in _TRUNCATION_MAP:
-            raise ValueError(
-                f"Unsupported truncation {config.truncation!r}. "
-                f"Choose one of: {', '.join(_TRUNCATION_MAP)}"
-            )
+        data["truncation"] = TRUNCATION_MAP[truncation_name]
+        data["formulation"] = FORMULATION_MAP[formulation_name]
 
-        # FMMax asks for one approximate total number of terms. 
-        approximate_num_terms = (
-            (2 * config.m + 1) * (2 * config.n + 1)
-        )
-        # Retrieve real and complex dtypes from the map.
-        real_dtype,complex_dtype = _DTYPE_MAP[config.dtype]
-        
-        return cls(
-            # Convert the common strings into objects JAX and FMMax expect.
-            real_dtype=real_dtype,
-            complex_dtype=complex_dtype,
-            device=config.device,
-            nx=config.nx,
-            ny=config.ny,
-            approximate_num_terms=approximate_num_terms,
-            truncation=_TRUNCATION_MAP[config.truncation],
-        )
-        
+        return cls(**data)
