@@ -19,63 +19,57 @@ from metarcwa.model.adapters import (from_dispertorch,
                                      from_metashapes
 )
 
-def build_model(
-        lattice_a1: torch.Tensor,
-        lattice_a2: torch.Tensor,
-        wavelength: torch.Tensor,
-        theta_deg: torch.Tensor,
-        phi_deg: torch.Tensor,
-        incidence_perm_model: ConstantEps,
-        dielectric_perm_model: ConstantEps,
-        particle_perm_model: ConstantEps,
-        transmission_perm_model: ConstantEps,
-        layers_data: list[dict]
-) -> Model:
+DTYPE_MAP = {
+    "float32": torch.float32,
+    "float64": torch.float64
+}
+
+def build_media(data:dict,
+                dtype: torch.dtype)-> dict[str, IsotropicMedium]:
     """
-    Construct a solver independent MetaRCWA model.
-
-    The lengths are given in nanometers. Source angles are 
-    given in degrees and converted to radians for MetaRCWA.
-
-    The complete layer stack from incidence side to the transmission side is:
-    1. Semi-infinite incidence medium
-    2. Homogeneous dielectric layer
-    3. Patterned layer containing the particle and its background
-    4. Semi-infinite transmission medium
-
-    Parameters:
-    lattice_a1_nm: torch.Tensor
-        Lattice vector a1 in nanometers.
-    lattice_a2_nm: torch.Tensor
-        Lattice vector a2 in nanometers.
-    wavelength: torch.Tensor   
-        Free-space illumination wavelength(s) in nanometers.
-    theta_deg: torch.Tensor
-        Polar incidence angle(s) in degrees, measured from the surface normal. Use zero
-        for normal incidence.
-    phi_deg: torch.Tensor
-        Azimuthal incidence angle(s) in degrees.
-    incidence_perm_model: ConstantEps
-        DispertTorch material model for the semi-infinite incidence medium.
-    dielectric_perm_model: ConstantEps
-        DispertTorch material model for the homogeneous dielectric layer.
-    particle_perm_model: ConstantEps
-        DispertTorch material model for the particle in the patterned layer.
-    transmission_perm_model: ConstantEps
-        DispertTorch material model for the semi-infinite transmission medium.
-    layers_data: list[dict]
-        List of dictionaries containing the layer data. Each dictionary should have the following keys:
-        - 'thickness_nm': Thickness of the layer in nanometers.
-        - 'shape': Shape of the particle in the patterned layer (e.g., 'rectangle', 'ellipse').
-        - 'shape_params': Parameters for the shape (e.g., side lengths for rectangle, axes for ellipse).
-
-    Returns:
-    --------
-    Model:
-        A solver independent MetaRCWA model.
+    Construct named MetaRCWA media from a dictionary of material data.
     """
+    
+    # Materials
 
-def build_layer(data:dict)->Layer:
+    model_data = data["model"]
+    material_data = model_data["materials"]
+    
+    # Store the constructed media under their material name
+    media = {}
+    
+    for material_name in material_data:
+
+        # Get the material's properties from the YAML file
+        material_properties = material_data[material_name]
+
+        # Get its epsilon dictionary
+        epsilon = material_properties["epsilon"]
+
+        # Extract the real and imaginary parts of epsilon
+        eps_re = epsilon["real"]
+        eps_im = epsilon["imag"]
+
+        # Construct the DisperTorch material model for the material
+        permittivity_model = ConstantEps(
+            eps_re = eps_re,
+            eps_im = eps_im,
+            dtype=dtype
+        )
+
+        # Convert it into a MetaRCWA IstropicMedium
+        medium = IsotropicMedium(from_dispertorch(permittivity_model))
+
+        # Save it before moving onto the next material
+        media[material_name] = medium
+
+    # Return all media after the loop has finished
+    return media
+
+def build_layer(data:dict,
+                dtype=torch.dtype
+                )->Layer:
+
     """
     Construct a MetaRCWA layer from a dictionary of layer data.
 
@@ -90,7 +84,9 @@ def build_layer(data:dict)->Layer:
     --------
     Layer:
         A MetaRCWA Layer object.
-        """
+    """
+    dtype = DTYPE_MAP[model_data["numerics"]["dtype"]]
+    media = build_media(data, dtype=dtype)
 
     model_data = data["model"]
     layer_data= model_data["layers"]
@@ -101,8 +97,9 @@ def build_layer(data:dict)->Layer:
     # Homogeneous layer
     if layer_type == "homogeneous":
 
+        material = str(layer_data["material"])
         return Layer(
-            medium_solid = from_dispertorch(layer_data["material"]),
+            medium_solid = media[material],
             thickness=thickness_nm
         )
 
@@ -111,21 +108,23 @@ def build_layer(data:dict)->Layer:
 
     if layer_type == "patterned":
 
+        solid = str(layer_data["solid"])
+        void = str(layer_data["void"])
         shape_data = layer_data["shape"]
         # MetShapes constructs the shape from its dictionary
         shape = Shape.from_parametric(shape_data)
 
         return Layer(
-            medium_solid = IsotropicMedium(
-                from_dispertorch(layer_data["solid"])),
-            medium_void = IsotropicMedium(
-                from_dispertorch(layer_data["void"])),
+            medium_solid = media[solid],
+            medium_void = media[void],
             thickness=torch.tensor(thickness_nm),
             shape_fn = from_metashapes(shape, soft=False)
         )
 
 
-def build_model(data:dict) -> Model:
+def build_model(data:dict,
+                dtype=torch.dtype
+                ) -> Model:
     """
     Construct a solver independent MetaRCWA model.
 
@@ -169,13 +168,14 @@ def build_model(data:dict) -> Model:
     Model:
         A solver independent MetaRCWA model.
     """
+    dtype = DTYPE_MAP[model_data["numerics"]["dtype"]]
+    media = build_media(data, dtype=dtype)
 
     # YAML has nested dictionaries so index each level seperately
     model_data = data["model"]
     lattice_data = model_data["lattice"]
     source_data = model_data["source"]
 
-    
     # Extract the parameters from the data dictionary
 
     # Lattice
@@ -188,18 +188,9 @@ def build_model(data:dict) -> Model:
     theta_deg = torch.tensor(source_data["theta_deg"])
     phi_deg = torch.tensor(source_data["phi_deg"])
 
-    source = Source(wavelength=wavelength, theta=theta_deg, phi=phi_deg)
-
-    # Materials
-    incidence_perm_model = ConstantEps(torch.tensor(model_data["incidence_perm"]))
-    dielectric_perm_model = ConstantEps(torch.tensor(model_data["dielectric_perm"]))
-    particle_perm_model = ConstantEps(torch.tensor(model_data["particle_perm"]))
-    transmission_perm_model = ConstantEps(torch.tensor(model_data["transmission_perm"]))
-
-    # Convert the DisperTorch material models into MetaRCWA media
-    # The other layers are constructed from the build_layer function defined above
-    incidence_medium = IsotropicMedium(from_dispertorch(incidence_perm_model))
-    transmission_medium = IsotropicMedium(from_dispertorch(transmission_perm_model))
+    source = Source(wavelength=wavelength,
+                    theta=torch.deg2rad(theta_deg), 
+                    phi=torch.deg2rad(phi_deg))
 
     # Layers
     layers_data = model_data["layers"]
@@ -215,9 +206,9 @@ def build_model(data:dict) -> Model:
 
     # Construct the stack
     stack = Stack(
-        incidence=incidence_medium,
+        incidence=media["incidence"],
         layers = layers,
-        transmission=transmission_medium,
+        transmission=media["transmission"],
         lattice = lattice
     )
 

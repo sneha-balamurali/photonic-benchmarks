@@ -2,6 +2,9 @@ model:
   # Physical lengths are in nanometres.
   # Angles in this YAML are in degrees.
 
+  numerics:
+    dtype: float64
+    
   lattice:
     a1_nm: [180.0, 0.0]
     a2_nm: [0.0, 240.0]
@@ -12,7 +15,7 @@ model:
     phi_deg: 0.0
 
   materials:
-    air:
+    incidence:
       epsilon:
         real: 1.0
         imag: 0.0
