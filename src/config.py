@@ -1,12 +1,9 @@
 from dataclasses import dataclass
 
-@dataclass
+@dataclass(frozen=True)
 class Config:
     """
     Solver-independent numerical settings for one simulation.
-
-    Values are ordinary Python types so that they can be loaded
-    from YAML and translated for solver specific adapters.
     """
     
     dtype: str
@@ -29,6 +26,12 @@ class Config:
         if self.m < 0 or self.n < 0:
             raise ValueError("m and n cannot be negative")
 
+        if self.dtype not in ("float32","float64"):
+            raise ValueError("dtype must be 'float32' or 'float64'")
+
+        if self.truncation not in ("circular","rectangular"):
+            raise ValueError("truncation must be 'circular' or 'rectangular'")
+
 
     def to_dict(self) -> dict:
         """
@@ -48,6 +51,6 @@ class Config:
     @classmethod
     def from_dict(cls, d: dict) -> "Config":
         """
-        Create a configuration from a dictionary.
+        Create a configuration from YAML data.
         """
         return cls(**d)

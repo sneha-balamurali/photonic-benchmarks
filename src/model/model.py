@@ -168,6 +168,7 @@ def build_model(data:dict,
     Model:
         A solver independent MetaRCWA model.
     """
+    
     dtype = DTYPE_MAP[model_data["numerics"]["dtype"]]
     media = build_media(data, dtype=dtype)
 

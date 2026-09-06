@@ -9,7 +9,7 @@ jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
 from fmmax import basis, utils, fmm, scattering, fields
-from src.fmmax.config_prev import FMMaxConfig
+from fmmax.config_0 import FMMaxConfig
 from metarcwa import Model
 from src.config import Config
 from metarcwa.model.layer import HomogeneousLayer, PatternedLayer

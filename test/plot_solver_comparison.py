@@ -9,7 +9,7 @@ from dispertorch import ConstantEps
 
 from examples.metarcwa.square_particle import build_model
 from src.config import Config
-from fmmax.simulation_prev import run_fmmax
+from fmmax.simulation_0 import run_fmmax
 from metarcwa.simulation_prev import run_metarcwa
 from s4.simulation_prev import run_s4
 
