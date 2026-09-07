@@ -83,6 +83,8 @@ class PreparedFMMaxModel:
     theta: jax.Array
     phi: jax.Array
     in_plane_wavevector: jax.Array
+    incidence_eps: jax.Array
+    transmission_eps:jax.Array
     permittivities: list[jax.Array]
     thicknesses: list[jax.Array]
     layer_solve_results: list[fmm.LayerSolveResult]
@@ -111,6 +113,11 @@ class PreparedFMMaxModel:
             u=torch_to_jax(model_spec.a1, dtype=cfg.real_dtype),
             v=torch_to_jax(model_spec.a2, dtype=cfg.real_dtype)
         )
+
+        # theta and phi
+        theta = torch_to_jax(model.source.theta,dtype=cfg.real_dtype).reshape(-1)
+
+        phi = torch_to_jax(model.source.phi,dtype=cfg.real_dtype).reshape(-1)
 
         # MetaRCWA provides shape (Nw,), while kx0 and ky0 use
         # (Nw, Ntheta, Nphi). Add singleton dimension so that JAX 
@@ -180,26 +187,37 @@ class PreparedFMMaxModel:
                     complex_dtype=cfg.complex_dtype
                 )
 
-                # Pattern shape: (Ngrid0, Ngrid1)
+                # MetaRCWA/MetaShapes mask: (..., Ny, Nx)
+                # FMMax spatial convention: (..., Nx, Ny)
+                # Swap only the two trailing spatial axes.
                 pattern = torch_to_jax(
                     layer.pattern,
                     dtype = cfg.real_dtype
                 )
 
-                # Combine the two materials and pattern into one
-                # spatial permittivity grid for the FMMax eigensolver
-                # density = 1 selects the solid material
-                # density = 0 selects the void material
+                pattern = jnp.swapaxes(pattern,-2,-1)
 
                 # Broadcasting combines:
-                # solid_eps: (Nw,1,1,1,     1)
-                # void_eps: (Nw,1,1,1,      1)
-                # pattern:              (Ngrid0,Ngrid1)
-                # result: (Nw,1,1,Ngrid0,Ngrid1)
-                permittivity = utils.interpolate_permittivity(
-                    permittivity_solid = solid_eps,
-                    permittivity_void=void_eps,
-                    density = pattern
+                # solid_eps: (Nw,1,1,1,1)
+                # void_eps: (Nw,1,1,1,1)
+                # pattern:          (Ny,Nx)
+                # result: (Nw,1,1,Nx,Ny)
+
+                # Construct the patterned permittivity using MetaRCWA's material-mixing
+                # convention so both solvers receive the same permittivity grid:
+                #
+                #   pattern = 1 -> solid permittivity
+                #   pattern = 0 -> void permittivity
+                #   0 < pattern < 1 -> direct linear interpolation of permittivity
+                #
+                # FMMax's utils.interpolate_permittivity() instead interpolates the
+                # complex refractive index. We intentionally use direct permittivity
+                # interpolation here to avoid introducing different material preprocessing
+                # into the solver comparison.
+
+                permittivity = (
+                    pattern * solid_eps
+                    + (1.0 - pattern) * void_eps
                 )
 
             else:
@@ -260,6 +278,8 @@ class PreparedFMMaxModel:
             lattice_vectors=lattice_vectors,
             expansion=expansion,
             wavelength=wavelength,
+            theta=theta,
+            phi=phi,
             in_plane_wavevector=in_plane_wavevector,
             incidence_eps=incidence_eps,
             transmission_eps=transmission_eps,
@@ -272,9 +292,13 @@ class PreparedFMMaxModel:
 def reflectance_and_transmittance_fmmax(
         s_matrix,
         layer_solve_results,
-        polarization: str,
-        thicknesses
 ):
+
+    """
+    The current result extraction supports the benchmark's
+    normal-incidence, zero-azimuth source. General s/p excitation 
+    at arbitrary azimuth will be added separately.
+    """
     # Number of retained diffarction orders
     # FMMax stores two modal channels per diffraction order
     # index 0 has the first polarization block and index 1 the second
@@ -310,9 +334,12 @@ def reflectance_and_transmittance_fmmax(
     )
 
     # Sum over every diffraction order and output polarisation
-    incident_power = jnp.sum(incident_flux, axis=0)
-    reflected_power = jnp.sum(reflected_flux, axis=0)
-    transmitted_power = jnp.sum(transmitted_flux, axis=0)
+    # shape is (Nw, Ntheta, Nphi, 2*num_terms, 2)
+    # axis -2 represents a fourier order and one of the 2 independent
+    # polarisation/mode combination
+    incident_power = jnp.sum(incident_flux, axis=-2)
+    reflected_power = jnp.sum(reflected_flux, axis=-2)
+    transmitted_power = jnp.sum(transmitted_flux, axis=-2)
 
     # Total reflectance for s incidence would be R[0]
     # Total reflectance for p incidence would be R[1]
@@ -322,4 +349,41 @@ def reflectance_and_transmittance_fmmax(
     return{
         "R": R,
         "T": T
+    }
+
+def run_fmmax(
+    model: Model,
+    config: Config,
+) -> dict[str, jax.Array]:
+    """Prepare the model, run FMMax and return total powers."""
+
+    prepared = PreparedFMMaxModel.from_model(
+        model=model,
+        config=config,
+    )
+
+    result = reflectance_and_transmittance_fmmax(
+        s_matrix=prepared.s_matrix,
+        layer_solve_results=(
+            prepared.layer_solve_results
+        ),
+    )
+
+    R = result["R"]
+    T = result["T"]
+
+    return {
+        "Rs": R[..., 0],
+        "Rp": R[..., 1],
+        "Ts": T[..., 0],
+        "Tp": T[..., 1],
+        "requested_orders": (
+            prepared.config.approximate_num_terms
+        ),
+        "actual_orders": (
+            prepared.expansion.num_terms
+        ),
+        "basis_coefficients": (
+            prepared.expansion.basis_coefficients
+        ),
     }

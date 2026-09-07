@@ -78,7 +78,7 @@ class FMMaxConfig:
 
 
         return cls(
-            real_dtyped=real_dtype,
+            real_dtype=real_dtype,
             complex_dtype=complex_dtype,
             device=config.device,
             nx=config.nx,

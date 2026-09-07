@@ -29,8 +29,8 @@ class Config:
         if self.dtype not in ("float32","float64"):
             raise ValueError("dtype must be 'float32' or 'float64'")
 
-        if self.truncation not in ("circular","rectangular"):
-            raise ValueError("truncation must be 'circular' or 'rectangular'")
+        if self.truncation not in ("circular","rectangular", "parallelogramic"):
+            raise ValueError("truncation must be 'circular' or 'rectangular' or 'parallelogramic")
 
 
     def to_dict(self) -> dict:
