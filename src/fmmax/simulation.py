@@ -292,23 +292,38 @@ class PreparedFMMaxModel:
 def reflectance_and_transmittance_fmmax(
         s_matrix,
         layer_solve_results,
-):
+): 
+    """
+    1. Construct the incident modal amplitude with column 0
+    representing the s input and column 1 the p input
+    2. Apply the scattering matrix that relates incoming forward 
+    and backward modal amplitudes to the outgoing amplitudes on the 
+    incidence and transmission sides.
+    3. Convert the modal ampltidues to the Poynting flux, sum over the 
+    output channels and divide the output by incident power to get 
+    the reflectance and transmittance. 
 
-    """
     The current result extraction supports the benchmark's
-    normal-incidence, zero-azimuth source. General s/p excitation 
-    at arbitrary azimuth will be added separately.
+    normal-incidence, zero-azimuth source.
     """
-    # Number of retained diffarction orders
-    # FMMax stores two modal channels per diffraction order
-    # index 0 has the first polarization block and index 1 the second
+    # Find number of retained Fourier/diffarction orders
+    # FMMax stores two transverse modal channels per diffraction order
+    # Channels 0:n contain the first transverse modal block  
+    # Channels n:2n contain the second transverse modal block
     n = layer_solve_results[0].expansion.num_terms
 
-    # Zeroth-order plane wave excitation for s and p polarisation
-    # First axis, axis 0: modal channel
-    # which is diffraction order and polarisation block of output
-    # Second axis, axis 1: independent incident source polarisation
+    # Create two incidence excitations
+    # Shape (2*n modal channels, 2 incidence sources)
+    # Initially everthing 0 - no mode excited
+
     forward_amplitude_0 = jnp.zeros((2*n,2), dtype=complex)
+
+    # For arbitrary azimuthal, the fixed channels are not
+    # necessarily the physical s/p directions. 
+
+    # Under normal-incidence convention, column 0 is
+    # s polarised incident case, column 1 is p polarised incidence
+    # case. Channel 0 and n are zeroth order plane wave excitation.
     forward_amplitude_0 = forward_amplitude_0.at[0,0].set(1) #s
     forward_amplitude_0 = forward_amplitude_0.at[n,1].set(1) #p
 
@@ -320,16 +335,23 @@ def reflectance_and_transmittance_fmmax(
     incident_flux, reflected_flux = fields.amplitude_poynting_flux(
         forward_amplitude=forward_amplitude_0,
         backward_amplitude=reflected_amplitude_0,
+        # Incident and reflected wave in the incidence medium so 
+        # need the results of the layer eigensolve in [0]
+        # the incidence medium
         layer_solve_result=layer_solve_results[0]
     )
 
     # s11 maps incident amplitudes to transmitted amplitudes
-    transmitted_amplitude_0 = s_matrix.s11 @ forward_amplitude_0
+    transmitted_amplitude_n = s_matrix.s11 @ forward_amplitude_0
 
-    # No wave is incident from the transmission side
+
     transmitted_flux,_=fields.amplitude_poynting_flux(
-        forward_amplitude=transmitted_amplitude_0,
-        backward_amplitude=jnp.zeros_like(transmitted_amplitude_0),
+        forward_amplitude=transmitted_amplitude_n,
+        # No wave is incident from the transmission side
+        backward_amplitude=jnp.zeros_like(transmitted_amplitude_n),
+        # Transmitted waves in the transmission medium so 
+        # need the results of the layer eigensolve in [-1]
+        # the transmission medium
         layer_solve_result=layer_solve_results[-1]
     )
 
@@ -355,7 +377,12 @@ def run_fmmax(
     model: Model,
     config: Config,
 ) -> dict[str, jax.Array]:
-    """Prepare the model, run FMMax and return total powers."""
+    """Prepare the model, run FMMax and return total powers:
+    - Rs -> total reflected power for s incidence
+    - Rp -> total reflected power for p incidnece
+    - Ts -> total transmitted power for s incidence
+    - Tp -> total transmitted power for p incidence
+    """
 
     prepared = PreparedFMMaxModel.from_model(
         model=model,
