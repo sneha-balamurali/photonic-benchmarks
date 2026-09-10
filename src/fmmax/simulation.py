@@ -9,6 +9,7 @@ jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
 from fmmax import (basis,
+                   sources,
                    utils,
                    fmm,
                    scattering,
@@ -290,8 +291,7 @@ class PreparedFMMaxModel:
         )
 
 def reflectance_and_transmittance_fmmax(
-        s_matrix,
-        layer_solve_results,
+        model: PreparedFMMaxModel
 ): 
     """
     1. Construct the incident modal amplitude with column 0
@@ -310,7 +310,63 @@ def reflectance_and_transmittance_fmmax(
     # FMMax stores two transverse modal channels per diffraction order
     # Channels 0:n contain the first transverse modal block  
     # Channels n:2n contain the second transverse modal block
-    n = layer_solve_results[0].expansion.num_terms
+    no_fourier = model.layer_solve_results[0].expansion.num_terms
+
+    # wavelength, theta and phi from sources:
+    wavelength = model.wavelength
+    theta = model.theta
+    phi = model.phi
+
+    # Parameter sweep shape
+    batch_shape = (wavelength.shape,
+                   theta.shape,
+                   phi.shape)    
+
+    # Incidence permittivity
+    n_inc = jnp.sqrt(model.incidence_eps)
+
+    # Construct incident Ex and Ey for s and p polarisation
+    # When z component not defined, means it is 0.
+
+    # s polarisation:
+    Ex_s = jnp.broadcast_to(-jnp.sin(phi), 
+                            batch_shape)
+    Ey_s = jnp.broadcast_to(jnp.cos(phi),
+                            batch_shape)
+
+    Hx_s = jnp.broadcast_to(-n_inc * jnp.cos(theta)*jnp.cos(phi),
+                            batch_shape)
+    Hy_s = jnp.broadcast_to(-n_inc * jnp.cos(theta)*jnp.sin(phi),
+                            batch_shape)
+    Hz_s = jnp.broadcast_to(n_inc * jnp.sin(theta),
+                            batch_shape)
+
+    # p polarisation:
+    Ex_p = jnp.broadcast_to(jnp.cos(theta) * jnp.cos(phi),
+                            batch_shape)
+    Ey_p = jnp.broadcast_to(jnp.cos(theta) * jnp.sin(phi),
+                            batch_shape)
+    Ez_p = jnp.broadcast_to(-jnp.sin(theta),
+                            batch_shape)
+
+    Hx_p= jnp.broadcast_to(-n_inc * jnp.sin(phi),
+                           batch_shape)
+    Hy_p = jnp.broadcast_to(n_inc * jnp.cos(phi),
+                            batch_shape)
+
+    # Combine the two incident polarisations into one axis
+    # New shape: (Nw, Ntheta, Nphi, 2)
+    # [0]: s polarisation; [1]: p polarisation
+    Ex = jnp.stack((Ex_s,Ex_p),axis=-1)
+    Ey = jnp.stack((Ey_s, Ey_p), axis=-1)
+
+    Hx = jnp.stack((Hx_s, Hy_s), axis=-1)
+    Hy = jnp.stack((Hy_s, Hy_p), axis=-1)
+
+    # Add two spatial axes before `num_fields`
+    # FMMax's `amplitudes_for_fields` requires
+    # shape (...,nx,ny,num_fields)
+    
 
     # Create two incidence excitations
     # Shape (2*n modal channels, 2 incidence sources)
