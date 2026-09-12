@@ -114,11 +114,11 @@ class PreparedFMMaxModel:
             u=torch_to_jax(model_spec.a1, dtype=cfg.real_dtype),
             v=torch_to_jax(model_spec.a2, dtype=cfg.real_dtype)
         )
-
+        
         # theta and phi
-        theta = torch_to_jax(model.source.theta,dtype=cfg.real_dtype).reshape(-1)
+        theta = torch_to_jax(model.source.theta,dtype=cfg.real_dtype).reshape(1,-1,1)
 
-        phi = torch_to_jax(model.source.phi,dtype=cfg.real_dtype).reshape(-1)
+        phi = torch_to_jax(model.source.phi,dtype=cfg.real_dtype).reshape(1,1,-1)
 
         # MetaRCWA provides shape (Nw,), while kx0 and ky0 use
         # (Nw, Ntheta, Nphi). Add singleton dimension so that JAX 
@@ -306,24 +306,27 @@ def reflectance_and_transmittance_fmmax(
     The current result extraction supports the benchmark's
     normal-incidence, zero-azimuth source.
     """
-    # Find number of retained Fourier/diffarction orders
-    # FMMax stores two transverse modal channels per diffraction order
-    # Channels 0:n contain the first transverse modal block  
-    # Channels n:2n contain the second transverse modal block
-    no_fourier = model.layer_solve_results[0].expansion.num_terms
 
     # wavelength, theta and phi from sources:
-    wavelength = model.wavelength
-    theta = model.theta
-    phi = model.phi
+    wavelength = model.wavelength   #(Nw,1,1)
+    theta = model.theta             #(1,Ntheta,1)
+    phi = model.phi                 #(1,1,Nphi)
 
     # Parameter sweep shape
-    batch_shape = (wavelength.shape,
-                   theta.shape,
-                   phi.shape)    
+    # (Nw, Ntheta, Nphi)
+    batch_shape = (wavelength.shape[0],
+                   theta.shape[1],
+                   phi.shape[2])    
 
     # Incidence permittivity
-    n_inc = jnp.sqrt(model.incidence_eps)
+    # Shape of model.incidence_eps is (Nw,1,1,1,1)
+    # Need to remove final 1x1 material-grid axes before
+    # broadcasting across wavelength, theta, phi.
+    # New shape: (Nw,1,1)
+    n_inc = jnp.sqrt(jnp.squeeze
+                     (model.incidence_eps),
+                     axis = (-2,-1)
+    )
 
     # Construct incident Ex and Ey for s and p polarisation
     # When z component not defined, means it is 0.
@@ -360,12 +363,30 @@ def reflectance_and_transmittance_fmmax(
     Ex = jnp.stack((Ex_s,Ex_p),axis=-1)
     Ey = jnp.stack((Ey_s, Ey_p), axis=-1)
 
-    Hx = jnp.stack((Hx_s, Hy_s), axis=-1)
+    Hx = jnp.stack((Hx_s, Hx_p), axis=-1)
     Hy = jnp.stack((Hy_s, Hy_p), axis=-1)
 
-    # Add two spatial axes before `num_fields`
     # FMMax's `amplitudes_for_fields` requires
     # shape (...,nx,ny,num_fields)
+    # This is used to sample the incidence field for
+    # `amplitudes_for_fields()`
+
+    # Use the configured real-space resolution to sample 
+    # the incident field
+    field_nx = model.config.nx
+    field_ny = model.config.ny
+
+    # Generate the x,y position of every point where the incident
+    # field will be sampled used to evaluate the spatial phase of 
+    # the fields below.
+    x,y = basis.unit_cell_coordinates(
+        primitive_lattice_vectors = model.lattice_vectors,
+        shape = (field_nx,field_ny),
+        # Number of unit cells
+        num_unit_cells = (1,1)
+    )
+
+    
     
 
     # Create two incidence excitations
