@@ -199,7 +199,7 @@ class PreparedFMMaxModel:
                 # Broadcasting combines:
                 # solid_eps: (Nw,1,1,1,1)
                 # void_eps: (Nw,1,1,1,1)
-                # pattern:          (Ny,Nx)
+                # pattern:          (Nx,Ny)
                 # result: (Nw,1,1,Nx,Ny)
 
                 # Construct the patterned permittivity using MetaRCWA's material-mixing
@@ -419,7 +419,7 @@ def construct_incidence_amplitudes(
 
 def fmmax_reflectance_and_transmittance(
     prepared: PreparedFMMaxModel,
-) -> dict[str, jax.Array]:
+) -> dict[str, Any]:
     """Prepare the model, run FMMax and return total powers:
     - Rs -> total reflected power for s incidence
     - Rp -> total reflected power for p incidnece
@@ -497,7 +497,7 @@ def fmmax_reflectance_and_transmittance(
 def run_fmmax(
     model: Model,
     config: Config,
-) -> dict[str, jax.Array]:
+) -> dict[str, Any]:
     """Translate the shared inputs, run FMMax and return the results."""
 
     prepared = PreparedFMMaxModel.from_model(
