@@ -10,7 +10,6 @@ jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 from fmmax import (basis,
                    sources,
-                   utils,
                    fmm,
                    scattering,
                    fields)
@@ -22,7 +21,6 @@ from metarcwa.model.layer import (
     PatternedLayer
 )
 from metarcwa.model.base import ModelSpec
-from metarcwa.model.medium import IsotropicMediumSpec
 
 def torch_to_jax(value: torch.Tensor,
                  dtype:type) -> Any:
@@ -67,7 +65,7 @@ def prepare_uniform_permittivity(
 
     converted = torch_to_jax(value, dtype=complex_dtype)
 
-    return converted[:, None, None, None, None]
+    return converted.reshape(-1,1,1,1,1)
 
 @dataclass
 class PreparedFMMaxModel:
@@ -290,27 +288,17 @@ class PreparedFMMaxModel:
             s_matrix=s_matrix,
         )
 
-def reflectance_and_transmittance_fmmax(
-        model: PreparedFMMaxModel
+def construct_incidence_amplitudes(
+        prepared: PreparedFMMaxModel
 ): 
     """
-    1. Construct the incident modal amplitude with column 0
-    representing the s input and column 1 the p input
-    2. Apply the scattering matrix that relates incoming forward 
-    and backward modal amplitudes to the outgoing amplitudes on the 
-    incidence and transmission sides.
-    3. Convert the modal ampltidues to the Poynting flux, sum over the 
-    output channels and divide the output by incident power to get 
-    the reflectance and transmittance. 
-
-    The current result extraction supports the benchmark's
-    normal-incidence, zero-azimuth source.
+    Construct s- and p-polarized plane-wave amplitudes
     """
 
     # wavelength, theta and phi from sources:
-    wavelength = model.wavelength   #(Nw,1,1)
-    theta = model.theta             #(1,Ntheta,1)
-    phi = model.phi                 #(1,1,Nphi)
+    wavelength = prepared.wavelength   #(Nw,1,1)
+    theta = prepared.theta             #(1,Ntheta,1)
+    phi = prepared.phi                 #(1,1,Nphi)
 
     # Parameter sweep shape
     # (Nw, Ntheta, Nphi)
@@ -323,9 +311,11 @@ def reflectance_and_transmittance_fmmax(
     # Need to remove final 1x1 material-grid axes before
     # broadcasting across wavelength, theta, phi.
     # New shape: (Nw,1,1)
-    n_inc = jnp.sqrt(jnp.squeeze
-                     (model.incidence_eps),
-                     axis = (-2,-1)
+    n_inc = jnp.sqrt(
+        jnp.squeeze(
+            prepared.incidence_eps,
+            axis=(-2,-1)
+        )
     )
 
     # Construct incident Ex and Ey for s and p polarisation
@@ -373,86 +363,62 @@ def reflectance_and_transmittance_fmmax(
 
     # Use the configured real-space resolution to sample 
     # the incident field
-    field_nx = model.config.nx
-    field_ny = model.config.ny
+    field_nx = prepared.config.nx
+    field_ny = prepared.config.ny
 
     # Generate the x,y position of every point where the incident
-    # field will be sampled used to evaluate the spatial phase of 
-    # the fields below.
+    # field will be sampled and used to evaluate the spatial phase 
+    # of the fields below.
+    # x,y.shape: (field_nx,field_ny)
     x,y = basis.unit_cell_coordinates(
-        primitive_lattice_vectors = model.lattice_vectors,
+        primitive_lattice_vectors = prepared.lattice_vectors,
+        # Creates the fractional spacing to sample,
+        # determines sampling density
         shape = (field_nx,field_ny),
-        # Number of unit cells
+        # Number of unit cells to sample along a1 and a2
         num_unit_cells = (1,1)
     )
 
-    
-    
+    # Want to calculate kx*x + ky * y for every wavelength,
+    # theta, phi and x,y grid point so need to reshape kx and ky
+    # Add two singelton spatial axes at the end
+    # Shape: (Nw,Ntheta,Nphi,1,1)
+    kx = prepared.in_plane_wavevector[...,0, None, None]
+    ky = prepared.in_plane_wavevector[...,1, None, None]
 
-    # Create two incidence excitations
-    # Shape (2*n modal channels, 2 incidence sources)
-    # Initially everthing 0 - no mode excited
+    phase = jnp.exp(1j * (kx * x + ky * y))
 
-    forward_amplitude_0 = jnp.zeros((2*n,2), dtype=complex)
+    # Calculate complete electric and magnetic field 
+    # Multiple the periodic envelope calculated above
+    # with the Bloch phase
 
-    # For arbitrary azimuthal, the fixed channels are not
-    # necessarily the physical s/p directions. 
+    # Ex.shape: (Nw,Ntheta,Nphi,2) -> 
+    # (Nw,Ntheta,Nphi,field_x,field_y,2)
+    # phase: (Nw, Ntheta,Nphi,field_x,field_y) -> 
+    # (Nw, Ntheta,Nphi,field_x,field_y,1)
+    # Result: (Nw,Ntheta,Nphi,field_x,field_y,2)
+    Ex = Ex[...,None,None,:]*phase[...,None]
+    Ey = Ey[...,None,None,:]*phase[...,None]
+    Hx = Hx[...,None,None,:]*phase[...,None]
+    Hy = Hy[...,None,None,:]*phase[...,None]
 
-    # Under normal-incidence convention, column 0 is
-    # s polarised incident case, column 1 is p polarised incidence
-    # case. Channel 0 and n are zeroth order plane wave excitation.
-    forward_amplitude_0 = forward_amplitude_0.at[0,0].set(1) #s
-    forward_amplitude_0 = forward_amplitude_0.at[n,1].set(1) #p
+    incidence_eigensolve = prepared.layer_solve_results[0]
 
-    # Reflected zeroth order amplitude
-    # s21 maps incident amplitudes to reflected amplitudes
-    reflected_amplitude_0 = s_matrix.s21 @ forward_amplitude_0
-
-    # Incident and reflected power flux by modal channel
-    incident_flux, reflected_flux = fields.amplitude_poynting_flux(
-        forward_amplitude=forward_amplitude_0,
-        backward_amplitude=reflected_amplitude_0,
-        # Incident and reflected wave in the incidence medium so 
-        # need the results of the layer eigensolve in [0]
-        # the incidence medium
-        layer_solve_result=layer_solve_results[0]
+    forward_amplitudes,backward_amplitudes = (
+        sources.amplitudes_for_fields(
+            ex = Ex,
+            ey = Ey,
+            hx = Hx,
+            hy = Hy,
+            layer_solve_result = incidence_eigensolve,
+            brillouin_grid_axes = None
+        )
     )
 
-    # s11 maps incident amplitudes to transmitted amplitudes
-    transmitted_amplitude_n = s_matrix.s11 @ forward_amplitude_0
+    return forward_amplitudes, backward_amplitudes
 
-
-    transmitted_flux,_=fields.amplitude_poynting_flux(
-        forward_amplitude=transmitted_amplitude_n,
-        # No wave is incident from the transmission side
-        backward_amplitude=jnp.zeros_like(transmitted_amplitude_n),
-        # Transmitted waves in the transmission medium so 
-        # need the results of the layer eigensolve in [-1]
-        # the transmission medium
-        layer_solve_result=layer_solve_results[-1]
-    )
-
-    # Sum over every diffraction order and output polarisation
-    # shape is (Nw, Ntheta, Nphi, 2*num_terms, 2)
-    # axis -2 represents a fourier order and one of the 2 independent
-    # polarisation/mode combination
-    incident_power = jnp.sum(incident_flux, axis=-2)
-    reflected_power = jnp.sum(reflected_flux, axis=-2)
-    transmitted_power = jnp.sum(transmitted_flux, axis=-2)
-
-    # Total reflectance for s incidence would be R[0]
-    # Total reflectance for p incidence would be R[1]
-    R = -reflected_power / incident_power 
-    T = transmitted_power / incident_power
-
-    return{
-        "R": R,
-        "T": T
-    }
-
-def run_fmmax(
-    model: Model,
-    config: Config,
+def fmmax_reflectance_and_transmittance(
+    prepared: PreparedFMMaxModel,
 ) -> dict[str, jax.Array]:
     """Prepare the model, run FMMax and return total powers:
     - Rs -> total reflected power for s incidence
@@ -460,21 +426,54 @@ def run_fmmax(
     - Ts -> total transmitted power for s incidence
     - Tp -> total transmitted power for p incidence
     """
-
-    prepared = PreparedFMMaxModel.from_model(
-        model=model,
-        config=config,
+    s_matrix = prepared.s_matrix
+    forward_amplitudes, source_backward_amplitudes = (
+        construct_incidence_amplitudes(
+            prepared = prepared
+        )
     )
 
-    result = reflectance_and_transmittance_fmmax(
-        s_matrix=prepared.s_matrix,
-        layer_solve_results=(
-            prepared.layer_solve_results
-        ),
-    )
+    # Incident and reflected wave in the incidence medium so need
+    # the results of the layer eigensolve in [0] i.e. the incidence
+    # medium
+    incidence_layer_solve_result = prepared.layer_solve_results[0]
+    reflected_amplitudes = s_matrix.s21 @ forward_amplitudes
 
-    R = result["R"]
-    T = result["T"]
+    # Incidenct and reflected power flux by modal channel
+    incident_flux, reflected_flux = (
+        fields.amplitude_poynting_flux(
+            forward_amplitude = forward_amplitudes,
+            backward_amplitude = reflected_amplitudes,
+            layer_solve_result = incidence_layer_solve_result
+        )
+    )
+    
+    # s11 maps incident amplitudes to transmitted amplitudes
+    transmitted_amplitudes = s_matrix.s11 @ forward_amplitudes
+    
+    
+    transmitted_flux,_=fields.amplitude_poynting_flux(
+            forward_amplitude=transmitted_amplitudes,
+            # No wave is incident from the transmission side
+            backward_amplitude=jnp.zeros_like(transmitted_amplitudes),
+            # Transmitted waves in the transmission medium so 
+            # need the results of the layer eigensolve in [-1]
+            # the transmission medium
+            layer_solve_result=prepared.layer_solve_results[-1]
+        )
+    
+    # Sum over every diffraction order and output polarisation
+    # shape is (Nw, Ntheta, Nphi, 2*num_terms, 2)
+    # axis -2 represents a fourier order and one of the 2 independent
+    # polarisation/mode combination
+    incident_power = jnp.sum(incident_flux, axis=-2)
+    reflected_power = jnp.sum(reflected_flux, axis=-2)
+    transmitted_power = jnp.sum(transmitted_flux, axis=-2)
+    
+    # Total reflectance for s incidence would be R[0]
+    # Total reflectance for p incidence would be R[1]
+    R = -reflected_power / incident_power 
+    T = transmitted_power / incident_power
 
     return {
         "Rs": R[..., 0],
@@ -490,4 +489,22 @@ def run_fmmax(
         "basis_coefficients": (
             prepared.expansion.basis_coefficients
         ),
+        "source_backward_residual": jnp.max(
+            jnp.abs(source_backward_amplitudes)
+),
     }
+
+def run_fmmax(
+    model: Model,
+    config: Config,
+) -> dict[str, jax.Array]:
+    """Translate the shared inputs, run FMMax and return the results."""
+
+    prepared = PreparedFMMaxModel.from_model(
+        model=model,
+        config=config,
+    )
+
+    return fmmax_reflectance_and_transmittance(
+        prepared=prepared
+    )
