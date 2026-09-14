@@ -7,7 +7,7 @@ from src.config import Config
 # option names. 
 _TRUNCATION_MAP= {
     "circular": "Circular",
-    "rectangular": "Parallelogramic"
+    "parallelogramic": "Parallelogramic"
 }
 
 @dataclass
@@ -28,6 +28,12 @@ class S4Config:
     lattice_truncation:
         S4's name for the Fourier-order truncation rule. It is either `Circular`
         or `Parallelogramic`.
+
+    Notes
+    -----
+    S4 adapter doesn't used the shared PyTorch/JAX device setting and runs on CPU 
+    and returns float64 regardless of the shared dtype/device settings.
+    
     """
 
     nx: int

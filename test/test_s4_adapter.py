@@ -1,9 +1,9 @@
 import math
 
-from s4.config_prev import S4Config
+from s4.config import S4Config
 from test.test_config import create_example_config
 from test.test_metarcwa import create_small_config, create_small_model
-from s4.simulation_prev import (
+from s4.simulation import (
     PreparedS4Model,
     solve_s4_total_power,
     solve_s4_power_by_order,

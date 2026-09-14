@@ -11,7 +11,7 @@ from examples.metarcwa.square_particle import build_model
 from src.config import Config
 from fmmax.simulation_0 import run_fmmax
 from metarcwa.simulation_prev import run_metarcwa
-from s4.simulation_prev import run_s4
+from s4.simulation import run_s4
 
 def create_config() -> Config:
     """Creare a simple numerifal config for all three solvers."""
