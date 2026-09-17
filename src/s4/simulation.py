@@ -523,3 +523,5 @@ def run_s4(
             dtype=torch.int64,
         ),
     }
+
+    
