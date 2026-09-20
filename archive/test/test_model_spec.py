@@ -1,4 +1,4 @@
-from test.test_metarcwa import create_small_config, create_small_model
+from archive.test.test_metarcwa import create_small_config, create_small_model
 
 
 def test_model_spec() -> None:

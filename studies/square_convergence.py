@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import yaml
 from src.benchmark import run_backends
 from src.config import Config
-from src.model.model_square import model
+from examples.model_square import model
 import csv
 
 # Load the YAML configuration 

@@ -1,4 +1,4 @@
-from s4.simulation import PreparedS4Model
+from src.s4.simulation import PreparedS4Model
 import torch
 import math
 from dataclasses import dataclass

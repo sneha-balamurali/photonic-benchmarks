@@ -1,9 +1,9 @@
 import torch
 from dispertorch import ConstantEps
 
-from examples.metarcwa.square_particle import build_model
+from archive.examples.metarcwa.square_particle import build_model
 from src.config import Config
-from metarcwa.simulation_prev import run_metarcwa
+from archive.previous_src.metarcwa.simulation_prev import run_metarcwa
 
 
 def create_small_model():

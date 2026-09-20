@@ -7,10 +7,10 @@ import numpy as np
 import torch
 from dispertorch import ConstantEps
 
-from examples.metarcwa.square_particle import build_model
+from archive.examples.metarcwa.square_particle import build_model
 from src.config import Config
-from fmmax.simulation_0 import run_fmmax
-from metarcwa.simulation_prev import run_metarcwa
+from archive.previous_src.fmmax.simulation_0 import run_fmmax
+from archive.previous_src.metarcwa.simulation_prev import run_metarcwa
 from s4.simulation import run_s4
 
 def create_config() -> Config:

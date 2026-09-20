@@ -1,11 +1,11 @@
 import jax.numpy as jnp
 from fmmax import basis, fmm
 
-from fmmax.config_1 import FMMaxConfig
-from test.test_config import create_example_config
-from test.test_metarcwa import create_small_config, create_small_model
-from fmmax.simulation_0 import PreparedFMMaxModel
-from fmmax.simulation_0 import run_fmmax
+from archive.previous_src.fmmax.config_1 import FMMaxConfig
+from archive.test.test_config import create_example_config
+from archive.test.test_metarcwa import create_small_config, create_small_model
+from archive.previous_src.fmmax.simulation_0 import PreparedFMMaxModel
+from archive.previous_src.fmmax.simulation_0 import run_fmmax
 
 def test_fmmax_adapter() -> None:
     common = create_example_config()

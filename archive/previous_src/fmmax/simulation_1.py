@@ -7,7 +7,7 @@ from typing import Any
 # Enable double precision before creating JAX arrays
 jax.config.update("jax_enable_x64", True)
 
-from fmmax.config_1 import FMMaxConfig
+from archive.previous_src.fmmax.config_1 import FMMaxConfig
 from src.fmmax import basis, fmm, scattering
 
 @dataclass
