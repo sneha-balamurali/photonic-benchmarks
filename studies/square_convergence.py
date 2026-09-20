@@ -98,6 +98,8 @@ with csv_path.open("w",newline="", encoding="utf-8") as file:
     writer.writeheader()
     writer.writerows(csv_rows)
 
+print(f"Saved CSV to {csv_path}")
+
 plt.savefig(
     output_directory / "square_convergence.png",
     dpi=200,
