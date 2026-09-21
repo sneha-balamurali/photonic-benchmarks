@@ -1096,9 +1096,12 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fmmax" },
+    { name = "jax" },
     { name = "matplotlib" },
     { name = "metarcwa", extra = ["dispertorch", "metashapes"] },
     { name = "numpy" },
+    { name = "pyyaml" },
+    { name = "torch" },
 ]
 
 [package.dev-dependencies]
@@ -1109,9 +1112,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fmmax", specifier = ">=1.7.1" },
+    { name = "jax", specifier = ">=0.4.36" },
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "metarcwa", extras = ["dispertorch", "metashapes"], git = "https://github.com/RodionovSA/metarcwa.git" },
     { name = "numpy", specifier = ">=2.5.1" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "torch", specifier = ">=2.1" },
 ]
 
 [package.metadata.requires-dev]
