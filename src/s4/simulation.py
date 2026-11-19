@@ -190,8 +190,13 @@ class PreparedS4Model:
             1.0 / wavelength
         )
 
-        simulation.SetOptions(LatticeTruncation= 
-                            cfg.lattice_truncation)
+        simulation.SetOptions(
+            LatticeTruncation= cfg.lattice_truncation,
+            DiscretizedEpsilon=cfg.discretized_epsilon,
+            DiscretizationResolution=cfg.discretization_resolution,
+            PolarizationDecomposition=cfg.polarization_decomposition,
+            PolarizationBasis=cfg.polarization_basis,
+            )
 
         # S4 represents the semi-infinite incidence medium as the first
         # layer with zero thickness

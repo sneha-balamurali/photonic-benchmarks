@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from metarcwa import Factorization
 
 import torch
 
@@ -28,6 +29,6 @@ class MetaRCWAConfig(metarcwa_config):
 
             # Temporary baseline for the first working route
             # Can expose MetaRCWA factorisation and etc later
-            factorization=None,
+            factorization=Factorization(method="Pol"),
         )
         

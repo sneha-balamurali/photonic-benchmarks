@@ -56,7 +56,7 @@ class FMMaxConfig:
     @classmethod
     def from_config(cls,
                     config: Config,
-                    formulation: str = "fft") -> "FMMaxConfig":
+                    formulation: str = "pol") -> "FMMaxConfig":
         """
         Create a configuration from a common Config.
         """

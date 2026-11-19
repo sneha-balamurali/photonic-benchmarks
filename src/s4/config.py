@@ -35,12 +35,36 @@ class S4Config:
     and returns float64 regardless of the shared dtype/device settings.
     
     """
-
+    # General settings between all three solvers
     nx: int
     ny: int
     requested_num_basis: int
     lattice_truncation: str
-    
+
+    # S4-specific formulation settings
+    polarization_decomposition: bool = True
+    polarization_basis: str = "Default"
+
+    # S4-specific geometry discretisation settings
+    discretized_epsilon: bool = True
+    discretization_resolution: int = 8
+
+    def __post_init__(self) -> None:
+        valid_bases = {
+            "Default",
+            "Normal",
+            "Jones",
+        }
+        if self.polarization_basis not in valid_bases:
+            raise ValueError(
+                "polarization_basis must be one of "
+                f"{sorted(valid_bases)}."
+            )
+        if self.discretization_resolution < 2:
+            raise ValueError(
+                "discretization_resolution must be at least 2."
+            )
+
     @classmethod
     def from_config(cls, config: Config) -> "S4Config":
         """ Translate the common Config into S4 settings"""
