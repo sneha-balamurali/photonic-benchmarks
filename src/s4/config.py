@@ -42,7 +42,7 @@ class S4Config:
     lattice_truncation: str
 
     # S4-specific formulation settings
-    polarization_decomposition: bool = True
+    polarization_decomposition: bool = False
     polarization_basis: str = "Default"
 
     # S4-specific geometry discretisation settings

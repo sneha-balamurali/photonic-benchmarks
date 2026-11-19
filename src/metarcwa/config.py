@@ -29,6 +29,6 @@ class MetaRCWAConfig(metarcwa_config):
 
             # Temporary baseline for the first working route
             # Can expose MetaRCWA factorisation and etc later
-            factorization=Factorization(method="Pol"),
+            factorization=None,
         )
         
